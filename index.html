@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue Leximeter</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ramda@0.28.0/dist/ramda.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.8/dist/clipboard.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.4.0/firebase-auth.js"></script>
+    <script src="tiny_segmenter.js"></script>
+    <script src="./WethePeopleoftheUnitedStates.js"></script>
+    <script src="./constitution_of_japan.js"></script>
+    <style>
+        .btn { margin: 5px; }
+    </style>
+</head>
+<body id="app">
+    <div>
+        Language:
+        <label>
+            <input type="radio" v-model="language" value="en" @change="setLexis"> English
+        </label>
+        <label>
+            <input type="radio" v-model="language" value="ja" @change="setLexis"> Japanese
+        </label>
+    </div>
+    <div>
+        under <input type="number" v-model.number="number1" min="1" @input="updateDisplay">
+    </div>
+    <div>
+        over <input type="number" v-model.number="number0" min="1" @input="updateDisplay">
+    </div>
+    <div>
+        Sort Order:
+        <label>
+            <input type="radio" v-model="sortOrder" value="desc" @change="updateDisplay"> DESC
+        </label>
+        <label>
+            <input type="radio" v-model="sortOrder" value="asc" @change="updateDisplay"> ASC
+        </label>
+    </div>
+    <div>
+        <textarea v-model="lexis" cols="50" rows="10" placeholder="foo bar foo baz" @input="count"></textarea>
+        <button class="btn" data-clipboard-target="#bar">COPY</button>
+        <button class="btn" data-clipboard-target="#baz">COPY</button>
+        <button class="btn" @click="clearLexis">CLEAR</button>
+        <button class="btn" @click="createLexis">Save</button>
+        <button class="btn" @click="readLexis">Load</button>
+        <button class="btn" @click="initializeDatabase">Initialize Database</button>
+    </div>
+    <div>
+        <textarea v-model="bar" id="bar" cols="20" rows="10" readonly></textarea>
+        <textarea v-model="baz" id="baz" cols="20" rows="10" readonly></textarea>
+    </div>
+    <div>
+        <button class="btn" @click="signInWithGoogle">Sign In with Google</button>
+        <button class="btn" @click="signOut">Sign Out</button>
+    </div>
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBcOlIDP2KWbJuKM0WeMHNp-WvjTVfLt9Y",
+            authDomain: "p2auth-ea50a.firebaseapp.com",
+            projectId: "p2auth-ea50a",
+            storageBucket: "p2auth-ea50a.appspot.com",
+            messagingSenderId: "796225429484",
+            appId: "1:796225429484:web:ece56ef2fc0be28cd6eac9"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const firestore = firebase.firestore();
+        
+        // Create Google Auth Provider instance
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+        // Vue application
+        Vue.createApp({
+            data() {
+                return {
+                    number0: 1,
+                    number1: 1,
+                    lexis: '',
+                    bar: '',
+                    baz: '',
+                    sortOrder: 'desc',
+                    language: 'en',
+                    entries: [],
+                    endpoint: 'https://cotton-concrete-catsup.glitch.me' // Endpoint variable
+                };
+            },
+            watch: {
+                lexis: 'count',
+                sortOrder: 'updateDisplay',
+                language: 'setLexis'
+            },
+            methods: {
+                count() {
+                    let words;
+                    if (this.language === 'ja') {
+                        words = tiny_segmenter(this.lexis.trim());
+                    } else {
+                        words = R.split(/[\s\n]+/, this.lexis.trim());
+                    }
+
+                    const wordCounts = R.countBy(R.identity, words);
+                    this.entries = R.toPairs(wordCounts);
+                    this.number1 = R.reduce(R.max, 1, R.map(R.prop(1), this.entries));
+                    this.updateDisplay();
+                },
+                updateDisplay() {
+                    const filteredEntries = R.filter(
+                        entry => entry[1] <= this.number1 && entry[1] >= this.number0,
+                        this.entries
+                    );
+
+                    const sortedEntries = this.sortOrder === 'desc' 
+                        ? R.sort(R.descend(R.prop(1)), filteredEntries)
+                        : R.sort(R.ascend(R.prop(1)), filteredEntries);
+
+                    this.bar = R.join('\n', R.pluck(0, sortedEntries));
+                    this.baz = R.join('\n', R.pluck(1, sortedEntries));
+                },
+                setLexis() {
+                    if (this.language === 'ja') {
+                        this.lexis = constitution_of_japan;
+                    } else {
+                        this.lexis = WethePeopleoftheUnitedStates;
+                    }
+                    this.count();
+                },
+                clearLexis() {
+                    if (confirm("Are you sure you want to clear the text?")) {
+                        this.lexis = '';
+                        this.bar = '';
+                        this.baz = '';
+                    }
+                },
+                async createLexis() {
+                    const lexisRef = firestore.collection('lexis').doc();
+                    try {
+                        await lexisRef.set({
+                            lexis: this.lexis,
+                            uid: auth.currentUser.uid,
+                            created: firebase.firestore.FieldValue.serverTimestamp(),
+                            updated: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        console.log('Lexis created successfully');
+                    } catch (error) {
+                        console.error('Error creating lexis:', error);
+                    }
+                },
+                async readLexis() {
+                    try {
+                        const snapshot = await firestore.collection('lexis').get();
+                        this.entries = snapshot.docs.map(doc => doc.data());
+                        console.log('Lexis retrieved successfully');
+                    } catch (error) {
+                        console.error('Error retrieving lexis:', error);
+                    }
+                },
+                async signInWithGoogle() {
+                    try {
+                        const result = await auth.signInWithPopup(googleProvider);
+                        const user = result.user;
+                        console.log('User signed in:', user);
+                    } catch (error) {
+                        console.error('Error signing in:', error);
+                    }
+                },
+                async signOut() {
+                    try {
+                        await auth.signOut();
+                        console.log('User signed out');
+                    } catch (error) {
+                        console.error('Error signing out:', error);
+                    }
+                },
+
+
+
+                async initializeDatabase() {
+    // const password = prompt("Enter password to initialize the database:");
+    const password = prompt("Enter password to initialize the database:");
+    try {
+        const response = await fetch(`${this.endpoint}/api/init-database-lexis`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password }),
+        });
+        const result = await response.text(); // レスポンスをまずテキストとして取得
+        console.log(result); // レスポンスの内容をコンソールに表示
+        try {
+            const jsonResult = JSON.parse(result); // テキストを JSON にパース
+            if (response.ok) {
+                alert(jsonResult.message);
+            } else {
+                alert(jsonResult.error);
+            }
+        } catch (e) {
+            console.error('Failed to parse JSON:', e);
+            alert('Error initializing database. Response was not in JSON format.');
+        }
+    } catch (error) {
+        console.error('Error initializing database:', error);
+        alert('Error initializing database.');
+    }
+},
+
+
+
+
+
+
+            },
+            
+            async mounted() {
+                new ClipboardJS('.btn');
+                this.setLexis();
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
