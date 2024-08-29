@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アンケート作成</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    h1 {
+      color: #333;
+    }
+    input[type="text"] {
+      padding: 10px;
+      width: 300px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .question-container {
+      background-color: white;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>アンケート作成</h1>
+
+    <div v-for="(question, index) in questions" :key="index" class="question-container">
+      <input type="text" v-model="question.text" placeholder="質問を入力 (1〜100文字)" maxlength="100">
+      <div>
+        <label v-for="n in 5" :key="n">
+          <input type="radio" :name="'answer' + index" :value="n" v-model="question.selectedAnswer">
+          {{ n }}
+        </label>
+      </div>
+    </div>
+
+    <button @click="addQuestion">質問を追加</button>
+    <button @click="submitQuestions">アンケートを保存</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+  <script>
+    const app = Vue.createApp({
+      data() {
+        return {
+          questions: [{ text: '', selectedAnswer: null }]
+        }
+      },
+      methods: {
+        addQuestion() {
+          this.questions.push({ text: '', selectedAnswer: null });
+        },
+        submitQuestions() {
+          const validQuestions = this.questions.filter(q => q.text.length > 0 && q.selectedAnswer !== null);
+          if (validQuestions.length > 0) {
+            localStorage.setItem('surveyQuestions', JSON.stringify(validQuestions));
+            alert('アンケートが保存されました！回答画面へ移動してください。');
+          } else {
+            alert('少なくとも1つの有効な質問と回答が必要です。');
+          }
+        }
+      }
+    });
+
+    app.mount('#app');
+  </script>
+</body>
+</html>

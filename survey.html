@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アンケート回答</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    h1 {
+      color: #333;
+    }
+    .question-container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .progress {
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 20px;
+      background-color: #007bff;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>アンケートに回答する</h1>
+    <div class="progress">
+      <div class="progress-bar" :style="{ width: progress + '%' }"></div>
+    </div>
+
+    <div v-if="currentQuestionIndex < questions.length" class="question-container">
+      <p>{{ questions[currentQuestionIndex].text }}</p>
+      <div>
+        <label v-for="n in 5" :key="n">
+          <input type="radio" :name="'answer' + currentQuestionIndex" :value="n" v-model="answers[currentQuestionIndex]">
+          {{ n }}
+        </label>
+      </div>
+      <button @click="nextQuestion" :disabled="answers[currentQuestionIndex] === null">次へ</button>
+    </div>
+
+    <div v-else>
+      <p>アンケートが終了しました！送信をクリックしてください。</p>
+      <button @click="submitAnswers">送信</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+  <script>
+    const app = Vue.createApp({
+      data() {
+        return {
+          questions: [],
+          answers: [],
+          currentQuestionIndex: 0,
+        }
+      },
+      computed: {
+        progress() {
+          return ((this.currentQuestionIndex / this.questions.length) * 100).toFixed(0);
+        }
+      },
+      methods: {
+        nextQuestion() {
+          if (this.answers[this.currentQuestionIndex] !== null) {
+            this.currentQuestionIndex++;
+          }
+        },
+        submitAnswers() {
+          const endpoint = 'https://example.com/submit';  // 送信先のエンドポイントを指定
+          fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(this.answers)
+          })
+          .then(response => response.json())
+          .then(data => {
+            alert('回答が送信されました。ありがとうございます！');
+          })
+          .catch(error => {
+            console.error('送信エラー:', error);
+            alert('回答の送信に失敗しました。もう一度お試しください。');
+          });
+        }
+      },
+      mounted() {
+        const savedQuestions = localStorage.getItem('surveyQuestions');
+        if (savedQuestions) {
+          this.questions = JSON.parse(savedQuestions);
+          this.answers = new Array(this.questions.length).fill(null);
+        } else {
+          alert('アンケートが見つかりません。作成画面でアンケートを作成してください。');
+        }
+      }
+    });
+
+    app.mount('#app');
+  </script>
+</body>
+</html>
