@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アンケート回答</title>
+    <script src="https://unpkg.com/vue@next"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            text-align: center;
+        }
+        #progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f3f3f3;
+            margin-bottom: 20px;
+        }
+        #progress-bar div {
+            height: 100%;
+            background-color: #4caf50;
+            width: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>アンケート回答</h1>
+        <div id="progress-bar"><div :style="{ width: progress + '%' }"></div></div>
+        <form @submit.prevent="nextQuestion">
+            <div v-if="currentQuestion">
+                <p>{{ currentQuestion.text }}</p>
+                <div v-for="answer in [1, 2, 3, 4, 5]" :key="answer">
+                    <label>
+                        <input type="radio" v-model="currentAnswer" :value="answer" required>
+                        {{ answer }}
+                    </label>
+                </div>
+                <button type="submit">次へ</button>
+            </div>
+            <div v-else>
+                <p>アンケートが完了しました。ご協力ありがとうございました。</p>
+            </div>
+        </form>
+    </div>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    questions: [],
+                    currentQuestionIndex: 0,
+                    currentAnswer: null
+                };
+            },
+            computed: {
+                currentQuestion() {
+                    return this.questions[this.currentQuestionIndex];
+                },
+                progress() {
+                    return ((this.currentQuestionIndex + 1) / this.questions.length) * 100;
+                }
+            },
+            methods: {
+                nextQuestion() {
+                    if (this.currentAnswer !== null) {
+                        this.currentQuestion.answer = this.currentAnswer;
+                        this.currentAnswer = null;
+                        this.currentQuestionIndex++;
+                        if (this.currentQuestionIndex >= this.questions.length) {
+                            this.submitSurvey();
+                        }
+                    }
+                },
+                async submitSurvey() {
+                    try {
+                        await localforage.setItem('surveyResults', this.questions);
+                        alert('アンケートが送信されました。');
+                    } catch (err) {
+                        console.error(err);
+                        alert('送信に失敗しました。');
+                    }
+                }
+            },
+            async mounted() {
+                try {
+                    const survey = await localforage.getItem('survey');
+                    if (survey) {
+                        this.questions = survey;
+                    } else {
+                        alert('アンケートが見つかりませんでした。');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('アンケートの読み込みに失敗しました。');
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
