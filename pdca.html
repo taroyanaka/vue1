@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDCA Management App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        .container {
+            padding: 20px;
+        }
+        nav {
+            margin-bottom: 20px;
+        }
+        nav button {
+            padding: 10px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .hidden {
+            display: none;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button.delete {
+            background-color: #f44336;
+        }
+        .pack-list, .project-list {
+            margin-top: 20px;
+        }
+        .pack, .project {
+            background-color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PDCA Management App</h1>
+    </header>
+    <div class="container" id="app">
+        <nav>
+            <button @click="setActiveTab('projects')">プロジェクト管理</button>
+            <button @click="setActiveTab('packs')">パック管理</button>
+        </nav>
+
+        <!-- プロジェクト管理タブ -->
+        <div v-if="activeTab === 'projects'">
+            <h2>プロジェクト作成</h2>
+            <input v-model="newProject.name" type="text" placeholder="プロジェクト名">
+            <textarea v-model="newProject.description" placeholder="プロジェクト説明"></textarea>
+            <input v-model.number="newProject.kpi" type="number" placeholder="KPIの数値">
+            <button @click="addProject">プロジェクト追加</button>
+
+            <h2>既存のプロジェクト</h2>
+            <div class="project-list">
+                <div v-for="project in projects" :key="project.id" class="project">
+                    <h3>{{ project.name }}</h3>
+                    <p>{{ project.description }}</p>
+                    <p>KPI: {{ project.kpi }}</p>
+                    <button @click="deleteProject(project.id)" class="delete">削除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- パック管理タブ -->
+        <div v-if="activeTab === 'packs'">
+            <h2>パック作成</h2>
+            <select v-model="newPack.projectId">
+                <option v-for="project in projects" :value="project.id">{{ project.name }}</option>
+            </select>
+            <input v-model="newPack.plan" type="text" placeholder="Plan (1-100文字)" maxlength="100">
+            <input v-model="newPack.do" type="text" placeholder="Do (1-100文字)" maxlength="100">
+            <input v-model="newPack.check" type="text" placeholder="Check (1-100文字)" maxlength="100">
+            <input v-model="newPack.act" type="text" placeholder="Act (1-100文字)" maxlength="100">
+            <input v-model="newPack.kpiValue" type="number" placeholder="KPIの数値">
+            <input v-model="newPack.completeBy" type="datetime-local">
+            <button @click="addPack">パック追加</button>
+
+            <h2>既存のパック</h2>
+            <div class="pack-list">
+                <div v-for="pack in packs" :key="pack.id" class="pack">
+                    <h3>プロジェクト: {{ getProjectName(pack.projectId) }}</h3>
+                    <p>Plan: {{ pack.plan }}</p>
+                    <p>Do: {{ pack.do }}</p>
+                    <p>Check: {{ pack.check }}</p>
+                    <p>Act: {{ pack.act }}</p>
+                    <p>KPI: {{ pack.kpiValue }}</p>
+                    <p>完了予定日: {{ pack.completeBy }}</p>
+                    <button @click="deletePack(pack.id)" class="delete">削除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/localforage"></script>
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    activeTab: 'projects',
+                    projects: [],
+                    packs: [],
+                    newProject: {
+                        name: '',
+                        description: '',
+                        kpi: 0
+                    },
+                    newPack: {
+                        projectId: null,
+                        plan: '',
+                        do: '',
+                        check: '',
+                        act: '',
+                        kpiValue: 0,
+                        completeBy: new Date(new Date().getTime() + 48 * 60 * 60 * 1000).toISOString().slice(0, 16)
+                    }
+                };
+            },
+            methods: {
+                setActiveTab(tab) {
+                    this.activeTab = tab;
+                },
+                addProject() {
+                    const project = {
+                        id: Date.now(),
+                        name: this.newProject.name,
+                        description: this.newProject.description,
+                        kpi: this.newProject.kpi
+                    };
+                    this.projects.push(project);
+                    this.saveData();
+                    this.newProject = { name: '', description: '', kpi: 0 };
+                },
+                addPack() {
+                    const pack = {
+                        id: Date.now(),
+                        projectId: this.newPack.projectId,
+                        plan: this.newPack.plan,
+                        do: this.newPack.do,
+                        check: this.newPack.check,
+                        act: this.newPack.act,
+                        kpiValue: this.newPack.kpiValue,
+                        completeBy: this.newPack.completeBy
+                    };
+                    this.packs.push(pack);
+                    this.saveData();
+                    this.newPack = {
+                        projectId: null,
+                        plan: '',
+                        do: '',
+                        check: '',
+                        act: '',
+                        kpiValue: 0,
+                        completeBy: new Date(new Date().getTime() + 48 * 60 * 60 * 1000).toISOString().slice(0, 16)
+                    };
+                },
+                deleteProject(id) {
+                    this.projects = this.projects.filter(project => project.id !== id);
+                    this.packs = this.packs.filter(pack => pack.projectId !== id);
+                    this.saveData();
+                },
+                deletePack(id) {
+                    this.packs = this.packs.filter(pack => pack.id !== id);
+                    this.saveData();
+                },
+                getProjectName(projectId) {
+                    const project = this.projects.find(p => p.id === projectId);
+                    return project ? project.name : '不明なプロジェクト';
+                },
+                saveData() {
+                    localforage.setItem('projects', this.projects);
+                    localforage.setItem('packs', this.packs);
+                },
+                loadData() {
+                    localforage.getItem('projects').then(data => {
+                        if (data) this.projects = data;
+                    });
+                    localforage.getItem('packs').then(data => {
+                        if (data) this.packs = data;
+                    });
+                }
+            },
+            mounted() {
+                this.loadData();
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>
