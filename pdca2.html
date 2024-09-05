@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDCA Management App</title>
+    <style>
+        /* スタイルはそのまま使用 */
+    </style>
+</head>
+<body>
+    <header>
+        <div class="tabs">
+            <div class="tab" :class="{ active: activeTab === 'projects' }" @click="showTab('projects')">Projects</div>
+            <div class="tab" :class="{ active: activeTab === 'packs' }" @click="showTab('packs')">Packs</div>
+            <div class="tab" :class="{ active: activeTab === 'progress' }" @click="showTab('progress')">Progress</div>
+        </div>
+    </header>
+    <div id="app" class="container">
+        <div v-if="activeTab === 'projects'">
+            <h2>Projects</h2>
+            <button @click="addSampleData" class="button">Add Sample Data</button>
+            <button class="button red" @click="clearData">Clear Data</button>
+            <div v-for="project in sortedProjects" :key="project.id" class="project">
+                <h3>{{ project.name }}</h3>
+                <p class="description">{{ project.description }}</p>
+                <div>KPI: {{ project.kpi }}</div>
+                <div>Difficulty: <span v-for="i in 5" :key="i" class="stars" :style="{color: i <= project.difficulty ? 'gold' : 'lightgray'}">★</span></div>
+                <div>Due Date: {{ formatTimestamp(project.dueDate) }}</div>
+                <div class="price">
+                    <div>Target Price: ${{ project.targetPrice }}</div>
+                    <div>Current Price: ${{ project.currentPrice }}</div>
+                    <div v-for="(price, index) in project.objectivePrices" :key="index" class="price-item">
+                        Objective Price {{ index + 1 }}: ${{ price.amount }} ({{ price.description }})
+                    </div>
+                </div>
+                <button @click="viewPacks(project.id)">View Packs</button>
+                <div v-if="project.packs.length > 0">
+                    <h4>Packs Summary</h4>
+                    <ul>
+                        <li v-for="pack in project.packs" :key="pack.id">
+                            Pack {{ pack.id }} - Progress: {{ pack.progress }}%
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div v-if="activeTab === 'packs'">
+            <h2>Packs</h2>
+            <button @click="showPackForm('create')" class="button blue">Create New Pack</button>
+            <div v-if="currentPack">
+                <h3>{{ currentPack.id ? 'Edit Pack ' + currentPack.id : 'Create New Pack' }}</h3>
+                <div class="form-group">
+                    <label for="packDescription">Description:</label>
+                    <input type="text" v-model="currentPack.description" id="packDescription" />
+                </div>
+                <div class="form-group">
+                    <label for="packDueDate">Due Date:</label>
+                    <input type="datetime-local" v-model="currentPack.dueDate" id="packDueDate" />
+                </div>
+                <div class="form-group">
+                    <label for="packStatus">Status:</label>
+                    <select v-model="currentPack.status" id="packStatus">
+                        <option value="done">Done</option>
+                        <option value="undone">Undone</option>
+                    </select>
+                </div>
+                <button @click="savePack" class="button">Save Pack</button>
+                <button @click="cancelEdit" class="button red">Cancel</button>
+                <button v-if="currentPack.id" @click="deletePack" class="button red">Delete Pack</button>
+            </div>
+            <div v-for="pack in sortedPacks" :key="pack.id" class="pack">
+                <h3>Pack {{ pack.id }}</h3>
+                <div v-for="(stage, index) in pack.stages" :key="index" :class="{ 'status-done': stage.status === 'done', 'status-undone': stage.status === 'undone' }">
+                    <div>{{ stage.name }}: {{ stage.description }}</div>
+                    <div v-for="link in stage.links" :key="link.name" class="links">
+                        <a :href="link.href" target="_blank" class="link">{{ link.name }} ({{ '★'.repeat(link.importance) }})</a>
+                    </div>
+                </div>
+                <div class="progress-bar"><div :style="{ width: pack.progress + '%' }"></div></div>
+                <button @click="editPack(pack)" class="button blue">Edit Pack</button>
+            </div>
+        </div>
+        <div v-if="activeTab === 'progress'">
+            <h2>Progress</h2>
+            <div v-for="project in projects" :key="project.id" class="project">
+                <h3>{{ project.name }} Progress</h3>
+                <div>Overall Progress: {{ calculateProjectProgress(project) }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.45/dist/vue.global.js"></script>
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    activeTab: 'projects',
+                    projects: [],
+                    packs: [],
+                    currentPack: null,
+                    sortCriteria: {
+                        projects: { key: 'kpi', order: 'asc' },
+                        packs: { key: 'progress', order: 'asc' }
+                    },
+                    languages: {
+                        en: {
+                            projectName: 'Project Name',
+                            description: 'Description',
+                            kpi: 'KPI',
+                            difficulty: 'Difficulty',
+                            dueDate: 'Due Date',
+                            targetPrice: 'Target Price',
+                            currentPrice: 'Current Price',
+                            objectivePrices: 'Objective Prices',
+                            progress: 'Progress'
+                        }
+                    }
+                };
+            },
+            computed: {
+                sortedProjects() {
+                    return this.projects.slice().sort((a, b) => {
+                        const key = this.sortCriteria.projects.key;
+                        const order = this.sortCriteria.projects.order === 'asc' ? 1 : -1;
+                        if (a[key] < b[key]) return -1 * order;
+                        if (a[key] > b[key]) return 1 * order;
+                        return 0;
+                    });
+                },
+                sortedPacks() {
+                    return this.packs.slice().sort((a, b) => {
+                        const key = this.sortCriteria.packs.key;
+                        const order = this.sortCriteria.packs.order === 'asc' ? 1 : -1;
+                        if (a[key] < b[key]) return -1 * order;
+                        if (a[key] > b[key]) return 1 * order;
+                        return 0;
+                    });
+                }
+            },
+            methods: {
+                showTab(tab) {
+                    this.activeTab = tab;
+                },
+                addSampleData() {
+                    const sampleProjects = [
+                        {
+                            id: 1,
+                            name: 'Project 1',
+                            description: 'Sample Project 1',
+                            kpi: 70,
+                            difficulty: 3,
+                            dueDate: new Date(Date.now() + 96 * 60 * 60 * 1000).toISOString(),
+                            targetPrice: 1000,
+                            currentPrice: 800,
+                            objectivePrices: [{ amount: 500, description: 'Objective 1' }, { amount: 700, description: 'Objective 2' }],
+                            packs: Array.from({ length: 10 }, (_, i) => ({
+                                id: i + 1,
+                                description: `Pack ${i + 1} Description`,
+                                dueDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+                                status: 'undone',
+                                stages: [
+                                    { name: 'P', description: 'Plan', status: 'undone', links: [] },
+                                    { name: 'D', description: 'Do', status: 'undone', links: [] },
+                                    { name: 'C', description: 'Check', status: 'undone', links: [] },
+                                    { name: 'A', description: 'Act', status: 'undone', links: [] }
+                                ],
+                                progress: 50
+                            }))
+                        },
+                        {
+                            id: 2,
+                            name: 'Project 2',
+                            description: 'Sample Project 2',
+                            kpi: 50,
+                            difficulty: 2,
+                            dueDate: new Date(Date.now() + 96 * 60 * 60 * 1000).toISOString(),
+                            targetPrice: 2000,
+                            currentPrice: 1500,
+                            objectivePrices: [{ amount: 800, description: 'Objective 1' }],
+                            packs: Array.from({ length: 3 }, (_, i) => ({
+                                id: i + 1,
+                                description: `Pack ${i + 1} Description`,
+                                dueDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+                                status: 'undone',
+                                stages: [
+                                    { name: 'P', description: 'Plan', status: 'undone', links: [] },
+                                    { name: 'D', description: 'Do', status: 'undone', links: [] },
+                                    { name: 'C', description: 'Check', status: 'undone', links: [] },
+                                    { name: 'A', description: 'Act', status: 'undone', links: [] }
+                                ],
+                                progress: 50
+                            }))
+                        }
+                    ];
+                    this.projects = sampleProjects;
+                },
+                clearData() {
+                    this.projects = [];
+                    this.packs = [];
+                },
+                calculateProjectProgress(project) {
+                    const totalPacks = project.packs.length;
+                    const totalProgress = project.packs.reduce((sum, pack) => sum + pack.progress, 0);
+                    return totalPacks > 0 ? Math.round(totalProgress / totalPacks) : 0;
+                },
+                showPackForm(action, pack = null) {
+                    if (action === 'create') {
+                        this.currentPack = {
+                            id: Date.now(),
+                            description: '',
+                            dueDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+                            status: 'undone',
+                            stages: [
+                                { name: 'P', description: '', status: 'undone', links: [] },
+                                { name: 'D', description: '', status: 'undone', links: [] },
+                                { name: 'C', description: '', status: 'undone', links: [] },
+                                { name: 'A', description: '', status: 'undone', links: [] }
+                            ],
+                            progress: 0
+                        };
+                    } else {
+                        this.currentPack = { ...pack };
+                    }
+                },
+                savePack() {
+                    if (this.currentPack.id) {
+                        const index = this.packs.findIndex(p => p.id === this.currentPack.id);
+                        if (index !== -1) {
+                            this.packs.splice(index, 1, this.currentPack);
+                        }
+                    } else {
+                        this.packs.push(this.currentPack);
+                    }
+                    this.currentPack = null;
+                },
+                editPack(pack) {
+                    this.showPackForm('edit', pack);
+                },
+                deletePack() {
+                    if (this.currentPack && this.currentPack.id) {
+                        this.packs = this.packs.filter(p => p.id !== this.currentPack.id);
+                        this.currentPack = null;
+                    }
+                },
+                cancelEdit() {
+                    this.currentPack = null;
+                },
+                formatTimestamp(timestamp) {
+                    const date = new Date(timestamp);
+                    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                },
+                viewPacks(projectId) {
+                    const project = this.projects.find(p => p.id === projectId);
+                    if (project) {
+                        this.packs = project.packs;
+                        this.showTab('packs');
+                    }
+                }
+            }
+        });
+        app.mount('#app');
+    </script>
+</body>
+</html>
