@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,72 +46,107 @@
         button.delete {
             background-color: #f44336;
         }
-        .pack-list, .project-list {
-            margin-top: 20px;
+        .done {
+            color: gray;
         }
-        .pack, .project {
-            background-color: #fff;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        .links {
+            margin-top: 10px;
+        }
+        .stars {
+            color: gold;
+        }
+        .language-select {
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .language-select span {
+            cursor: pointer;
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
     <header>
-        <h1>PDCA Management App</h1>
+        <h1>{{ languageData[language].appTitle }}</h1>
     </header>
     <div class="container" id="app">
         <nav>
-            <button @click="setActiveTab('projects')">プロジェクト管理</button>
-            <button @click="setActiveTab('packs')">パック管理</button>
+            <button @click="setActiveTab('projects')">{{ languageData[language].projectManagement }}</button>
+            <button @click="setActiveTab('packs')">{{ languageData[language].packManagement }}</button>
         </nav>
+
+        <!-- 言語設定 -->
+        <div class="language-select">
+            <span @click="changeLanguage('en')">🇬🇧</span>
+            <span @click="changeLanguage('es')">🇪🇸</span>
+            <span @click="changeLanguage('ja')">🇯🇵</span>
+            <span @click="changeLanguage('ko')">🇰🇷</span>
+            <span @click="changeLanguage('zh')">🇨🇳</span>
+            <span @click="changeLanguage('de')">🇩🇪</span>
+            <span @click="changeLanguage('fr')">🇫🇷</span>
+        </div>
 
         <!-- プロジェクト管理タブ -->
         <div v-if="activeTab === 'projects'">
-            <h2>プロジェクト作成</h2>
-            <input v-model="newProject.name" type="text" placeholder="プロジェクト名">
-            <textarea v-model="newProject.description" placeholder="プロジェクト説明"></textarea>
-            <input v-model.number="newProject.kpi" type="number" placeholder="KPIの数値">
-            <button @click="addProject">プロジェクト追加</button>
+            <h2>{{ languageData[language].createProject }}</h2>
+            <input v-model="newProject.name" type="text" :placeholder="languageData[language].projectName">
+            <textarea v-model="newProject.description" :placeholder="languageData[language].projectDescription"></textarea>
+            <input v-model.number="newProject.kpi" type="number" :placeholder="languageData[language].projectKPI">
+            <button @click="addProject">{{ languageData[language].addProject }}</button>
 
-            <h2>既存のプロジェクト</h2>
+            <h2>{{ languageData[language].existingProjects }}</h2>
             <div class="project-list">
                 <div v-for="project in projects" :key="project.id" class="project">
                     <h3>{{ project.name }}</h3>
                     <p>{{ project.description }}</p>
                     <p>KPI: {{ project.kpi }}</p>
-                    <button @click="deleteProject(project.id)" class="delete">削除</button>
+                    <button @click="deleteProject(project.id)" class="delete">{{ languageData[language].delete }}</button>
                 </div>
             </div>
         </div>
 
         <!-- パック管理タブ -->
         <div v-if="activeTab === 'packs'">
-            <h2>パック作成</h2>
+            <h2>{{ languageData[language].createPack }}</h2>
             <select v-model="newPack.projectId">
                 <option v-for="project in projects" :value="project.id">{{ project.name }}</option>
             </select>
-            <input v-model="newPack.plan" type="text" placeholder="Plan (1-100文字)" maxlength="100">
-            <input v-model="newPack.do" type="text" placeholder="Do (1-100文字)" maxlength="100">
-            <input v-model="newPack.check" type="text" placeholder="Check (1-100文字)" maxlength="100">
-            <input v-model="newPack.act" type="text" placeholder="Act (1-100文字)" maxlength="100">
-            <input v-model="newPack.kpiValue" type="number" placeholder="KPIの数値">
-            <input v-model="newPack.completeBy" type="datetime-local">
-            <button @click="addPack">パック追加</button>
 
-            <h2>既存のパック</h2>
+            <!-- PDCA ステータス -->
+            <div v-for="(stage, index) in ['plan', 'do', 'check', 'act']" :key="index">
+                <input v-model="newPack[stage].description" type="text" :placeholder="languageData[language][stage]" maxlength="100">
+                <label>
+                    <input type="checkbox" v-model="newPack[stage].done"> {{ languageData[language].done }}
+                </label>
+                
+                <!-- リンク設定 -->
+                <div class="links">
+                    <div v-for="(link, linkIndex) in newPack[stage].links" :key="linkIndex">
+                        <input v-model="link.name" type="text" :placeholder="languageData[language].linkName">
+                        <input v-model="link.href" type="url" :placeholder="languageData[language].linkHref">
+                        <select v-model="link.stars">
+                            <option v-for="i in 5" :value="i">{{ i }}</option>
+                        </select>
+                        <span class="stars">{{ '★'.repeat(link.stars) }}</span>
+                    </div>
+                    <button @click="addLink(stage)">{{ languageData[language].addLink }}</button>
+                </div>
+            </div>
+
+            <button @click="addPack">{{ languageData[language].addPack }}</button>
+
+            <h2>{{ languageData[language].existingPacks }}</h2>
             <div class="pack-list">
                 <div v-for="pack in packs" :key="pack.id" class="pack">
-                    <h3>プロジェクト: {{ getProjectName(pack.projectId) }}</h3>
-                    <p>Plan: {{ pack.plan }}</p>
-                    <p>Do: {{ pack.do }}</p>
-                    <p>Check: {{ pack.check }}</p>
-                    <p>Act: {{ pack.act }}</p>
-                    <p>KPI: {{ pack.kpiValue }}</p>
-                    <p>完了予定日: {{ pack.completeBy }}</p>
-                    <button @click="deletePack(pack.id)" class="delete">削除</button>
+                    <h3>{{ getProjectName(pack.projectId) }}</h3>
+                    <div v-for="(stage, index) in ['plan', 'do', 'check', 'act']" :key="index" :class="{ done: pack[stage].done }">
+                        <p>{{ languageData[language][stage] }}: {{ pack[stage].description }}</p>
+                        <div v-for="(link, linkIndex) in pack[stage].links" :key="linkIndex">
+                            <a :href="link.href" target="_blank">{{ link.name }}</a>
+                            <span class="stars">{{ '★'.repeat(link.stars) }}</span>
+                        </div>
+                    </div>
+                    <button @click="deletePack(pack.id)" class="delete">{{ languageData[language].delete }}</button>
                 </div>
             </div>
         </div>
@@ -124,6 +159,177 @@
             data() {
                 return {
                     activeTab: 'projects',
+                    language: 'en',
+                    languageData: {
+                        en: {
+                            appTitle: 'PDCA Management App',
+                            projectManagement: 'Project Management',
+                            packManagement: 'Pack Management',
+                            createProject: 'Create Project',
+                            projectName: 'Project Name',
+                            projectDescription: 'Project Description',
+                            projectKPI: 'Project KPI',
+                            addProject: 'Add Project',
+                            existingProjects: 'Existing Projects',
+                            delete: 'Delete',
+                            createPack: 'Create Pack',
+                            addPack: 'Add Pack',
+                            existingPacks: 'Existing Packs',
+                            plan: 'Plan',
+                            do: 'Do',
+                            check: 'Check',
+                            act: 'Act',
+                            done: 'Done',
+                            undone: 'Undone',
+                            linkName: 'Link Name',
+                            linkHref: 'Link URL',
+                            addLink: 'Add Link'
+                        },
+                        es: {
+                            appTitle: 'Aplicación de Gestión PDCA',
+                            projectManagement: 'Gestión de Proyectos',
+                            packManagement: 'Gestión de Paquetes',
+                            createProject: 'Crear Proyecto',
+                            projectName: 'Nombre del Proyecto',
+                            projectDescription: 'Descripción del Proyecto',
+                            projectKPI: 'KPI del Proyecto',
+                            addProject: 'Añadir Proyecto',
+                            existingProjects: 'Proyectos Existentes',
+                            delete: 'Eliminar',
+                            createPack: 'Crear Paquete',
+                            addPack: 'Añadir Paquete',
+                            existingPacks: 'Paquetes Existentes',
+                            plan: 'Planificar',
+                            do: 'Hacer',
+                            check: 'Verificar',
+                            act: 'Actuar',
+                            done: 'Hecho',
+                            undone: 'No Hecho',
+                            linkName: 'Nombre del Enlace',
+                            linkHref: 'URL del Enlace',
+                            addLink: 'Añadir Enlace'
+                        },
+                        ja: {
+                            appTitle: 'PDCA管理アプリ',
+                            projectManagement: 'プロジェクト管理',
+                            packManagement: 'パック管理',
+                            createProject: 'プロジェクトを作成',
+                            projectName: 'プロジェクト名',
+                            projectDescription: 'プロジェクトの説明',
+                            projectKPI: 'プロジェクトのKPI',
+                            addProject: 'プロジェクトを追加',
+                            existingProjects: '既存のプロジェクト',
+                            delete: '削除',
+                            createPack: 'パックを作成',
+                            addPack: 'パックを追加',
+                            existingPacks: '既存のパック',
+                            plan: '計画',
+                            do: '実行',
+                            check: '確認',
+                            act: '改善',
+                            done: '完了',
+                            undone: '未完了',
+                            linkName: 'リンク名',
+                            linkHref: 'リンクURL',
+                            addLink: 'リンクを追加'
+                        },
+                        ko: {
+                            appTitle: 'PDCA 관리 앱',
+                            projectManagement: '프로젝트 관리',
+                            packManagement: '팩 관리',
+                            createProject: '프로젝트 생성',
+                            projectName: '프로젝트 이름',
+                            projectDescription: '프로젝트 설명',
+                            projectKPI: '프로젝트 KPI',
+                            addProject: '프로젝트 추가',
+                            existingProjects: '기존 프로젝트',
+                            delete: '삭제',
+                            createPack: '팩 생성',
+                            addPack: '팩 추가',
+                            existingPacks: '기존 팩',
+                            plan: '계획',
+                            do: '실행',
+                            check: '확인',
+                            act: '조정',
+                            done: '완료됨',
+                            undone: '미완료됨',
+                            linkName: '링크 이름',
+                            linkHref: '링크 URL',
+                            addLink: '링크 추가'
+                        },
+                        zh: {
+                            appTitle: 'PDCA管理应用',
+                            projectManagement: '项目管理',
+                            packManagement: '包管理',
+                            createProject: '创建项目',
+                            projectName: '项目名称',
+                            projectDescription: '项目描述',
+                            projectKPI: '项目KPI',
+                            addProject: '添加项目',
+                            existingProjects: '现有项目',
+                            delete: '删除',
+                            createPack: '创建包',
+                            addPack: '添加包',
+                            existingPacks: '现有包',
+                            plan: '计划',
+                            do: '执行',
+                            check: '检查',
+                            act: '行动',
+                            done: '完成',
+                            undone: '未完成',
+                            linkName: '链接名称',
+                            linkHref: '链接URL',
+                            addLink: '添加链接'
+                        },
+                        de: {
+                            appTitle: 'PDCA Management App',
+                            projectManagement: 'Projektmanagement',
+                            packManagement: 'Pack-Verwaltung',
+                            createProject: 'Projekt erstellen',
+                            projectName: 'Projektname',
+                            projectDescription: 'Projektbeschreibung',
+                            projectKPI: 'Projekt-KPI',
+                            addProject: 'Projekt hinzufügen',
+                            existingProjects: 'Bestehende Projekte',
+                            delete: 'Löschen',
+                            createPack: 'Pack erstellen',
+                            addPack: 'Pack hinzufügen',
+                            existingPacks: 'Bestehende Packs',
+                            plan: 'Planen',
+                            do: 'Tun',
+                            check: 'Überprüfen',
+                            act: 'Handeln',
+                            done: 'Erledigt',
+                            undone: 'Nicht erledigt',
+                            linkName: 'Link-Name',
+                            linkHref: 'Link-URL',
+                            addLink: 'Link hinzufügen'
+                        },
+                        fr: {
+                            appTitle: 'Application de Gestion PDCA',
+                            projectManagement: 'Gestion de Projet',
+                            packManagement: 'Gestion des Packs',
+                            createProject: 'Créer un Projet',
+                            projectName: 'Nom du Projet',
+                            projectDescription: 'Description du Projet',
+                            projectKPI: 'KPI du Projet',
+                            addProject: 'Ajouter un Projet',
+                            existingProjects: 'Projets Existants',
+                            delete: 'Supprimer',
+                            createPack: 'Créer un Pack',
+                            addPack: 'Ajouter un Pack',
+                            existingPacks: 'Packs Existants',
+                            plan: 'Planifier',
+                            do: 'Faire',
+                            check: 'Vérifier',
+                            act: 'Agir',
+                            done: 'Terminé',
+                            undone: 'Non Terminé',
+                            linkName: 'Nom du Lien',
+                            linkHref: 'URL du Lien',
+                            addLink: 'Ajouter un Lien'
+                        }
+                    },
                     projects: [],
                     packs: [],
                     newProject: {
@@ -133,12 +339,10 @@
                     },
                     newPack: {
                         projectId: null,
-                        plan: '',
-                        do: '',
-                        check: '',
-                        act: '',
-                        kpiValue: 0,
-                        completeBy: new Date(new Date().getTime() + 48 * 60 * 60 * 1000).toISOString().slice(0, 16)
+                        plan: { description: '', done: false, links: [] },
+                        do: { description: '', done: false, links: [] },
+                        check: { description: '', done: false, links: [] },
+                        act: { description: '', done: false, links: [] }
                     }
                 };
             },
@@ -147,70 +351,72 @@
                     this.activeTab = tab;
                 },
                 addProject() {
-                    const project = {
-                        id: Date.now(),
-                        name: this.newProject.name,
-                        description: this.newProject.description,
-                        kpi: this.newProject.kpi
-                    };
+                    const project = { ...this.newProject, id: Date.now() };
                     this.projects.push(project);
                     this.saveData();
-                    this.newProject = { name: '', description: '', kpi: 0 };
+                    this.newProject.name = '';
+                    this.newProject.description = '';
+                    this.newProject.kpi = 0;
                 },
                 addPack() {
                     const pack = {
                         id: Date.now(),
                         projectId: this.newPack.projectId,
-                        plan: this.newPack.plan,
-                        do: this.newPack.do,
-                        check: this.newPack.check,
-                        act: this.newPack.act,
-                        kpiValue: this.newPack.kpiValue,
-                        completeBy: this.newPack.completeBy
+                        plan: { ...this.newPack.plan },
+                        do: { ...this.newPack.do },
+                        check: { ...this.newPack.check },
+                        act: { ...this.newPack.act }
                     };
                     this.packs.push(pack);
                     this.saveData();
-                    this.newPack = {
-                        projectId: null,
-                        plan: '',
-                        do: '',
-                        check: '',
-                        act: '',
-                        kpiValue: 0,
-                        completeBy: new Date(new Date().getTime() + 48 * 60 * 60 * 1000).toISOString().slice(0, 16)
-                    };
+                    this.resetNewPack();
                 },
                 deleteProject(id) {
-                    this.projects = this.projects.filter(project => project.id !== id);
-                    this.packs = this.packs.filter(pack => pack.projectId !== id);
+                    this.projects = this.projects.filter(p => p.id !== id);
                     this.saveData();
                 },
                 deletePack(id) {
-                    this.packs = this.packs.filter(pack => pack.id !== id);
+                    this.packs = this.packs.filter(p => p.id !== id);
                     this.saveData();
                 },
                 getProjectName(projectId) {
                     const project = this.projects.find(p => p.id === projectId);
-                    return project ? project.name : '不明なプロジェクト';
+                    return project ? project.name : 'Unknown';
+                },
+                addLink(stage) {
+                    if (this.newPack[stage].links.length < 5) {
+                        this.newPack[stage].links.push({ name: '', href: '', stars: 3 });
+                    }
+                },
+                changeLanguage(lang) {
+                    this.language = lang;
                 },
                 saveData() {
                     localforage.setItem('projects', this.projects);
                     localforage.setItem('packs', this.packs);
                 },
                 loadData() {
-                    localforage.getItem('projects').then(data => {
-                        if (data) this.projects = data;
+                    localforage.getItem('projects').then(value => {
+                        if (value) this.projects = value;
                     });
-                    localforage.getItem('packs').then(data => {
-                        if (data) this.packs = data;
+                    localforage.getItem('packs').then(value => {
+                        if (value) this.packs = value;
                     });
+                },
+                resetNewPack() {
+                    this.newPack = {
+                        projectId: null,
+                        plan: { description: '', done: false, links: [] },
+                        do: { description: '', done: false, links: [] },
+                        check: { description: '', done: false, links: [] },
+                        act: { description: '', done: false, links: [] }
+                    };
                 }
             },
             mounted() {
                 this.loadData();
             }
         });
-
         app.mount('#app');
     </script>
 </body>
