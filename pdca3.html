@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDCA Management App</title>
+    <style>
+        /* :class="{ done: pack[stage].done } */
+        /* 完了したステージはバックグラウンドが灰色に */
+        .done {
+            background-color: #f0f0f0;
+        }
+        /* :class="{ done: pack[stage].done }をインデント表示 */
+
+
+    </style>
+</head>
+<body>
+    <header>
+    </header>
+    <div class="container" id="app">
+        <nav>
+            <button @click="setActiveTab('projects')">{{ languageData.projectManagement }}</button>
+            <button @click="setActiveTab('packs')">{{ languageData.packManagement }}</button>
+            <button @click="setActiveTab('progress')">{{ languageData.progressManagement }}</button>
+        </nav>
+
+        <!-- 言語設定 -->
+        <div class="language-select">
+            <span>{{ languageData.languageIcon }}</span>
+        </div>
+
+        <!-- プロジェクト管理タブ -->
+        <div v-if="activeTab === 'projects'">
+            <!-- sampleProjectAndThePacks -->
+            <button @click="sampleProjectAndThePacks">sampleProjectAndThePacks</button>
+            <h2>{{ languageData.createProject }}</h2>
+            <input v-model="newProject.name" type="text" :placeholder="languageData.projectName">
+            <textarea v-model="newProject.description" :placeholder="languageData.projectDescription"></textarea>
+            <input v-model.number="newProject.kpi" type="number" :placeholder="languageData.projectKPI">
+            <input v-model.number="newProject.dueDate" type="number" :placeholder="languageData.projectDueDate" min="1">
+            <button @click="addProject">{{ languageData.addProject }}</button>
+
+            <h2>{{ languageData.existingProjects }}</h2>
+            <div>
+                <button @click="sortProjects('kpi', 'asc')">sortByKPIAsc</button>
+                <button @click="sortProjects('kpi', 'desc')">sortByKPIDesc</button>
+                <button @click="sortProjects('dueDate', 'asc')">sortByDueDateAsc</button>
+                <button @click="sortProjects('dueDate', 'desc')">sortByDueDateDesc</button>
+                <button @click="sortProjects('packCount', 'asc')">sortByPackCountAsc</button>
+                <button @click="sortProjects('packCount', 'desc')">sortByPackCountDesc</button>
+                <button @click="sortProjects('incompletePackCount', 'asc')">sortByIncompletePackCountAsc</button>
+                <button @click="sortProjects('incompletePackCount', 'desc')">sortByIncompletePackCountDesc</button>
+            </div>
+            <div class="project-list">
+                <div v-for="project in sortedProjects" :key="project.id" class="project">
+                    <h3>{{ project.name }}</h3>
+                    <p>{{ project.description }}</p>
+                    <p>KPI: {{ project.kpi }}</p>
+                    <p>Difficulty: <span class="stars">{{ '★'.repeat(project.difficulty) }}</span></p>
+                    <p>Due Date: {{ formatDate(project.dueDate) }}</p>
+                    <div class="progress-bar" :style="{ width: projectProgress(project) + '%' }">{{ projectProgress(project) }}%
+                        <!-- パーセンテージを10%毎に○と●で表示 -->
+                        <span v-for="i in 10" :key="i" :class="{ filled: projectProgress(project) >= i * 10 }">{{ projectProgress(project) >= i * 10 ? '●' : '○' }}</span>
+                    </div>
+                    <div class="project-summary">
+                        <h4>{{ languageData.packsSummary }}</h4>
+                        <div v-for="pack in getPacksByProject(project.id)" :key="pack.id" class="pack-summary">
+                            <!-- <p>{{ formatProgress(pack) }}</p> -->
+                             <!-- doneのstageはバックグラウンド灰色で表示 -->
+<span v-for="(stage, index) in ['plan', 'do', 'check', 'act']" :key="index" :class="{ done: pack[stage].done }">{{ languageData[stage] }}: {{ pack[stage].description }}</span>
+                            <button @click="viewPacks(project.id)">{{ languageData.viewPacks }}</button>
+                            {{project.id}}
+                        </div>
+                    </div>
+                    <button @click="deleteProject(project.id)" class="delete">{{ languageData.delete }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- パック管理タブ -->
+        <div v-if="activeTab === 'packs'">
+            <h2>{{ languageData.createPack }}</h2>
+            <select v-model="newPack.projectId">
+                <option v-for="project in projects" :value="project.id">{{ project.name }}</option>
+            </select>
+
+            <div v-for="(stage, index) in ['plan', 'do', 'check', 'act']" :key="index">
+                <input v-model="newPack[stage].description" type="text" :placeholder="languageData[stage]" maxlength="100">
+                <label>
+                    <input type="checkbox" v-model="newPack[stage].done"> {{ languageData.done }}
+                </label>
+
+                <div class="links">
+                    <div v-for="(link, linkIndex) in newPack[stage].links" :key="linkIndex">
+                        <input v-model="link.name" type="text" :placeholder="languageData.linkName">
+                        <input v-model="link.href" type="url" :placeholder="languageData.linkHref">
+                        <select v-model="link.stars">
+                            <option v-for="i in 5" :value="i">{{ i }}</option>
+                        </select>
+                        <span class="stars">{{ '★'.repeat(link.stars) }}</span>
+                    </div>
+                    <button @click="addLink(stage)">{{ languageData.addLink }}</button>
+                </div>                
+            </div>
+            <!-- 期日日時の入力フィールドを追加 -->
+            <input v-model="newPack.dueDate" type="datetime-local" :placeholder="languageData.dueDate">
+
+
+            <button @click="addPack">{{ languageData.addPack }}</button>
+
+            <h2>{{ languageData.existingPacks }}</h2>
+            <div>
+                <button @click="sortPacks('pdca', 'asc')">{{ languageData.sortByPDCAAsc }}</button>
+                <button @click="sortPacks('pdca', 'desc')">{{ languageData.sortByPDCADesc }}</button>
+                <button @click="sortPacks('dueDate', 'asc')">{{ languageData.sortByDueDateAsc }}</button>
+                <button @click="sortPacks('dueDate', 'desc')">{{ languageData.sortByDueDateDesc }}</button>
+                <button @click="sortPacks('stars', 'asc')">{{ languageData.sortByStarsAsc }}</button>
+                <button @click="sortPacks('stars', 'desc')">{{ languageData.sortByStarsDesc }}</button>
+                <button @click="sortPacks('kpi', 'asc')">{{ languageData.sortByKPIAsc }}</button>
+                <button @click="sortPacks('kpi', 'desc')">{{ languageData.sortByKPIDesc }}</button>
+            </div>
+            <div class="pack-list">
+                <div v-for="pack in sortedPacks" :key="pack.id" class="pack">
+                    <h3>{{ getProjectName(pack.projectId) }}</h3>
+                    <div v-for="(stage, index) in ['plan', 'do', 'check', 'act']" :key="index" :class="{ done: pack[stage].done }">
+                        <!-- doneボタン -->
+                        <button @click="done_or_undone(pack,stage)">{{ languageData.done }}</button>
+                        <p>{{ languageData[stage] }}: {{ pack[stage].description }}</p>
+                        <div v-for="(link, linkIndex) in pack[stage].links" :key="linkIndex">
+                            <a :href="link.href" target="_blank">{{ link.name }}</a>
+                            <span class="stars">{{ '★'.repeat(link.stars) }}</span>
+                        </div>
+                    </div>
+                    <!-- 期日表示 utcフォーマットを　YYYY-MM-DDTHH:MM:SSZ　で表示 -->
+                    <p>Due Date: {{ pack.dueDate }}</p>
+                    <button @click="deletePack(pack.id)" class="delete">{{ languageData.delete }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 進捗管理タブ -->
+        <div v-if="activeTab === 'progress'">
+            <h2>{{ languageData.progressManagement }}</h2>
+            <!-- Display progress and other related info -->
+            <button @click="postToTwitter('project')">{{ languageData.postToTwitter }}</button>
+            <button @click="postToTwitter('pack')">{{ languageData.postPackToTwitter }}</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/localforage"></script>
+    <script>
+        // Load translations from pdca_lang.json
+        async function loadTranslations() {
+            const response = await fetch('pdca_lang.json');
+            return await response.json();
+        }
+
+        const app = Vue.createApp({
+            data() {
+                return {
+                    activeTab: 'projects',
+                    languageData: {},  // To be populated with translations
+                    newProject: {
+                        name: '',
+                        description: '',
+                        kpi: 0,
+                        dueDate: 96,  // Default due date
+                        difficulty: 3
+                    },
+                    newPack: {
+                        projectId: null,
+                        plan: { description: '', done: false, links: [] },
+                        do: { description: '', done: false, links: [] },
+                        check: { description: '', done: false, links: [] },
+                        act: { description: '', done: false, links: [] }
+                    },
+                    projects: [],
+                    packs: [],
+                    sortDirection: {
+                        projects: 'asc',
+                        packs: 'asc'
+                    }
+                };
+            },
+            async created() {
+                this.languageData = await loadTranslations();
+                this.loadProjects();
+                this.loadPacks();
+            },
+            computed: {
+                sortedProjects() {
+                    return this.projects.sort((a, b) => {
+                        const direction = this.sortDirection.projects === 'asc' ? 1 : -1;
+                        return a.name.localeCompare(b.name) * direction;
+                    });
+                },
+                sortedPacks() {
+                    return this.packs.sort((a, b) => {
+                        const direction = this.sortDirection.packs === 'asc' ? 1 : -1;
+                        return (a.id - b.id) * direction;
+                    });
+                }
+            },
+            methods: {
+                setActiveTab(tab) {
+                    this.activeTab = tab;
+                },
+                formatDate(hours) {
+                    const date = new Date();
+                    date.setHours(date.getHours() + hours);
+                    return date.toLocaleString();
+                },
+                formatProgress(pack) {
+                    // Format progress display for packs
+                    return `${pack.plan.description} | ${pack.do.description} | ${pack.check.description} | ${pack.act.description}`;
+                },
+                getPacksByProject(projectId) {
+                    return this.packs.filter(pack => pack.projectId === projectId);
+                },
+                getProjectName(projectId) {
+                    const project = this.projects.find(p => p.id === projectId);
+                    return project ? project.name : '';
+                },
+                loadProjects() {
+                    // Load projects from localForage
+                    localforage.getItem('projects').then(projects => {
+                        this.projects = projects || [];
+                    });
+                },
+                loadPacks() {
+                    // Load packs from localForage
+                    localforage.getItem('packs').then(packs => {
+                        this.packs = packs || [];
+                    });
+                },
+                addProject() {
+                    const newProject = { ...this.newProject, id: Date.now() };
+                    this.projects.push(newProject);
+                    localforage.setItem('projects', this.projects);
+                    this.newProject = { name: '', description: '', kpi: 0, dueDate: 96, difficulty: 3 };
+                },
+                deleteProject(id) {
+                    this.projects = this.projects.filter(project => project.id !== id);
+                    localforage.setItem('projects', this.projects);
+                },
+                addPack() {
+                    const newPack = { ...this.newPack, id: Date.now() };
+                    this.packs.push(newPack);
+                    localforage.setItem('packs', this.packs);
+                    this.newPack = { projectId: null, plan: { description: '', done: false, links: [] }, do: { description: '', done: false, links: [] }, check: { description: '', done: false, links: [] }, act: { description: '', done: false, links: [] } };
+                },
+                deletePack(id) {
+                    this.packs = this.packs.filter(pack => pack.id !== id);
+                    localforage.setItem('packs', this.packs);
+                },
+                addLink(stage) {
+                    this.newPack[stage].links.push({ name: '', href: '', stars: 3 });
+                },
+                postToTwitter(type) {
+                    // Implement Twitter posting functionality
+                    alert(`${type} posted to Twitter!`);
+                },
+                changeLanguage(language) {
+                    // Change language setting (though it defaults to English in this version)
+                    this.languageData = language;
+                },
+                projectProgress(project) {
+                    const packs = this.getPacksByProject(project.id);
+                    const totalPacks = packs.length;
+                    const completedPacks = packs.filter(pack => pack.plan.done && pack.do.done && pack.check.done && pack.act.done).length;
+                    return totalPacks === 0 ? 0 : Math.round((completedPacks / totalPacks) * 100);
+                },
+                sortProjects(criteria, direction) {
+                    this.sortDirection.projects = direction;
+                    if (criteria === 'kpi') {
+                        this.projects.sort((a, b) => (this.projectProgress(b) - this.projectProgress(a)) * (direction === 'asc' ? 1 : -1));
+                    } else if (criteria === 'dueDate') {
+                        this.projects.sort((a, b) => (a.dueDate - b.dueDate) * (direction === 'asc' ? 1 : -1));
+                    } else if (criteria === 'packCount') {
+                        this.projects.sort((a, b) => (this.getPacksByProject(b.id).length - this.getPacksByProject(a.id).length) * (direction === 'asc' ? 1 : -1));
+                    } else if (criteria === 'incompletePackCount') {
+                        this.projects.sort((a, b) => {
+                            const incompletePacksA = this.getPacksByProject(a.id).filter(pack => !pack.plan.done || !pack.do.done || !pack.check.done || !pack.act.done).length;
+                            const incompletePacksB = this.getPacksByProject(b.id).filter(pack => !pack.plan.done || !pack.do.done || !pack.check.done || !pack.act.done).length;
+                            return (incompletePacksB - incompletePacksA) * (direction === 'asc' ? 1 : -1);
+                        });
+                    }
+                },
+                sortPacks(criteria, direction) {
+                    this.sortDirection.packs = direction;
+                    if (criteria === 'pdca') {
+                        this.packs.sort((a, b) => {
+                            const progressA = this.packProgress(a);
+                            const progressB = this.packProgress(b);
+                            return (progressA - progressB) * (direction === 'asc' ? 1 : -1);
+                        });
+                    } else if (criteria === 'dueDate') {
+                        this.packs.sort((a, b) => (a.dueDate - b.dueDate) * (direction === 'asc' ? 1 : -1));
+                    } else if (criteria === 'stars') {
+                        this.packs.sort((a, b) => {
+                            const starsA = this.totalStars(a);
+                            const starsB = this.totalStars(b);
+                            return (starsA - starsB) * (direction === 'asc' ? 1 : -1);
+                        });
+                    } else if (criteria === 'kpi') {
+                        this.packs.sort((a, b) => (a.kpi - b.kpi) * (direction === 'asc' ? 1 : -1));
+                    }
+                },
+                packProgress(pack) {
+                    const stages = ['plan', 'do', 'check', 'act'];
+                    const completedStages = stages.filter(stage => pack[stage].done).length;
+                    return (completedStages / stages.length) * 100;
+                },
+                totalStars(pack) {
+                    const stages = ['plan', 'do', 'check', 'act'];
+                    return stages.reduce((total, stage) => {
+                        return total + pack[stage].links.reduce((sum, link) => sum + link.stars, 0);
+                    }, 0);
+                },
+                viewPacks(projectId) {
+                    this.setActiveTab('packs');
+                    this.newPack.projectId = projectId;
+                },
+                sampleProjectAndThePacks() {
+                    this.projects = [
+                        { id: 1, name: 'Project 1', description: 'Description 1', kpi: 80, dueDate: 96, difficulty: 3 },
+                        { id: 2, name: 'Project 2', description: 'Description 2', kpi: 60, dueDate: 72, difficulty: 2 },
+                        { id: 3, name: 'Project 3', description: 'Description 3', kpi: 40, dueDate: 48, difficulty: 1 }
+                    ];
+                    this.packs = [
+                        { id: 1, projectId: 1, plan: { description: 'Plan 1', done: true, links: [{ name: 'Link 1', href: 'https://example.com', stars: 3 }] }, do: { description: 'Do 1', done: false, links: [] }, check: { description: 'Check 1', done: false, links: [] }, act: { description: 'Act 1', done: false, links: [] }, dueDate: '2023-12-01T00:00:00Z' },
+                        { id: 2, projectId: 1, plan: { description: 'Plan 2', done: true, links: [] }, do: { description: 'Do 2', done: true, links: [] }, check: { description: 'Check 2', done: false, links: [] }, act: { description: 'Act 2', done: false, links: [] }, dueDate: '2023-12-05T00:00:00Z' },
+                        { id: 3, projectId: 2, plan: { description: 'Plan 3', done: true, links: [] }, do: { description: 'Do 3', done: true, links: [] }, check: { description: 'Check 3', done: true, links: [] }, act: { description: 'Act 3', done: true, links: [] }, dueDate: '2023-12-10T00:00:00Z' },
+                        { id: 4, projectId: 2, plan: { description: 'Plan 4', done: true, links: [] }, do: { description: 'Do 4', done: true, links: [] }, check: { description: 'Check 4', done: true, links: [] }, act: { description: 'Act 4', done: false, links: [] }, dueDate: '2023-12-15T00:00:00Z' },
+                        { id: 5, projectId: 3, plan: { description: 'Plan 5', done: true, links: [] }, do: { description: 'Do 5', done: true, links: [] }, check: { description: 'Check 5', done: false, links: [] }, act: { description: 'Act 5', done: false, links: [] }, dueDate: '2023-12-20T00:00:00Z' },
+                        { id: 6, projectId: 3, plan: { description: 'Plan 6', done: true, links: [] }, do: { description: 'Do 6', done: true, links: [] }, check: { description: 'Check 6', done: true, links: [] }, act: { description: 'Act 6', done: false, links: [] }, dueDate: '2023-12-25T00:00:00Z' }
+                    ];
+
+                },
+                // パックの完了・未完了を切り替える
+                done_or_undone(pack,stage) {
+// 指定したパックの指定したステージの完了・未完了を切り替える
+pack[stage].done = !pack[stage].done;
+// パックの完了度を計算
+const progress = this.packProgress(pack);
+// パックの完了度が100%になったら、プロジェクトの進捗を更新
+if (progress === 100) {
+    const project = this.projects.find(p => p.id === pack.projectId);
+    project.difficulty = Math.max(1, project.difficulty - 1);
+}
+// パックの完了度が0%になったら、プロジェクトの進捗を更新
+if (progress === 0) {
+    const project = this.projects.find(p => p.id === pack.projectId);
+    project.difficulty = Math.min(5, project.difficulty + 1);
+}
+                    
+
+                },
+
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
