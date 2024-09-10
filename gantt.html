@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue 3 Frappe Gantt Chart with CRUD</title>
+    
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3.2.33/dist/vue.global.prod.js"></script>
+
+    <!-- Frappe Gantt CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
+
+    <!-- Frappe Gantt JS -->
+    <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #gantt {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>ガントチャート with CRUD</h1>
+
+        <!-- ガントチャート表示 -->
+        <div id="gantt"></div>
+
+        <!-- CRUD用フォーム -->
+        <h2>タスクの追加/編集</h2>
+        <form @submit.prevent="addOrUpdateTask">
+            <label>
+                タスク名: 
+                <input v-model="taskForm.name" type="text" required>
+            </label><br>
+            <label>
+                開始日: 
+                <input v-model="taskForm.start" type="date" required>
+            </label><br>
+            <label>
+                終了日: 
+                <input v-model="taskForm.end" type="date" required>
+            </label><br>
+            <label>
+                進捗: 
+                <input v-model.number="taskForm.progress" type="number" min="0" max="100" required>
+            </label><br>
+            <button type="submit">{{ editMode ? '更新' : '追加' }}</button>
+            <button type="button" @click="resetForm">リセット</button>
+        </form>
+
+        <!-- タスクリストと削除機能 -->
+        <h2>タスクリスト</h2>
+        <ul>
+            <li v-for="(task, index) in tasks" :key="task.id">
+                {{ task.name }} ({{ task.start }} - {{ task.end }}) 進捗: {{ task.progress }}%
+                <button @click="editTask(index)">編集</button>
+                <button @click="deleteTask(index)">削除</button>
+            </li>
+        </ul>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    tasks: [
+                        { id: 'Task 1', name: 'プロジェクト開始', start: '2024-09-01', end: '2024-09-05', progress: 20 },
+                        { id: 'Task 2', name: '設計フェーズ', start: '2024-09-06', end: '2024-09-10', progress: 40 },
+                    ],
+                    taskForm: {
+                        id: null,
+                        name: '',
+                        start: '',
+                        end: '',
+                        progress: 0
+                    },
+                    editMode: false,
+                    gantt: null,
+                };
+            },
+            mounted() {
+                this.renderGantt();
+            },
+            methods: {
+                // ガントチャートを再描画
+                renderGantt() {
+                    if (this.gantt) {
+                        this.gantt.refresh(this.tasks);
+                    } else {
+                        this.gantt = new Gantt("#gantt", this.tasks, {
+                            view_mode: 'Day',
+                            date_format: 'YYYY-MM-DD',
+                            custom_popup_html: function (task) {
+                                return `
+                                    <div class="details-container">
+                                        <h5>${task.name}</h5>
+                                        <p>開始日: ${task.start}</p>
+                                        <p>終了日: ${task.end}</p>
+                                        <p>進捗: ${task.progress}%</p>
+                                    </div>
+                                `;
+                            }
+                        });
+                    }
+                },
+                // タスク追加または更新
+                addOrUpdateTask() {
+                    if (this.editMode) {
+                        // 編集モードの場合、タスクを更新
+                        const index = this.tasks.findIndex(t => t.id === this.taskForm.id);
+                        if (index !== -1) {
+                            this.tasks[index] = { ...this.taskForm };
+                        }
+                    } else {
+                        // 新しいタスクを追加
+                        const newTask = { ...this.taskForm, id: `Task ${this.tasks.length + 1}` };
+                        this.tasks.push(newTask);
+                    }
+                    this.resetForm();
+                    this.renderGantt();
+                },
+                // タスク編集
+                editTask(index) {
+                    this.taskForm = { ...this.tasks[index] };
+                    this.editMode = true;
+                },
+                // タスク削除
+                deleteTask(index) {
+                    this.tasks.splice(index, 1);
+                    this.renderGantt();
+                },
+                // フォームのリセット
+                resetForm() {
+                    this.taskForm = { id: null, name: '', start: '', end: '', progress: 0 };
+                    this.editMode = false;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
