@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue 3 Radar Chart with Tabs, CRUD and Slide-in Editor</title>
+
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3.2.33/dist/vue.global.prod.js"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            overflow-x: hidden; /* Prevents horizontal scrolling */
+        }
+        #chart-container {
+            width: 400px;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        .tabs {
+            display: flex;
+            list-style-type: none;
+            padding: 0;
+            margin-bottom: 20px;
+        }
+        .tabs li {
+            margin-right: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+        .tabs li.active {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        /* スライドメニュー */
+        .slide-menu {
+            position: fixed;
+            top: 0;
+            right: -300px; /* 初期位置は右に隠れている */
+            width: 300px;
+            height: 100%;
+            background-color: #f4f4f4;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            transition: right 0.3s ease;
+        }
+        .slide-menu.open {
+            right: 0; /* 開かれたときの位置 */
+        }
+        .slide-menu h2 {
+            margin-top: 0;
+        }
+        .edit-button {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <button class="edit-button" @click="toggleEdit">編集</button>
+
+        <!-- チャート選択タブ -->
+        <ul class="tabs">
+            <li v-for="(chart, index) in charts" :key="index" 
+                :class="{ active: selectedChartIndex === index }" 
+                @click="selectChart(index)">
+                {{ chart.name }}
+            </li>
+            <li @click="createNewChart">＋ 新規チャート</li>
+        </ul>
+
+        <!-- エラーメッセージ表示 -->
+        <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
+
+        <!-- チャート表示エリア -->
+        <div id="chart-container">
+            <canvas id="radarChart"></canvas>
+        </div>
+
+        <!-- スライドメニュー -->
+        <div :class="['slide-menu', { open: isEditOpen }]">
+            <!-- チャートの名前変更 -->
+            <h2>チャート名の変更</h2>
+            <label>
+                チャート名: 
+                <input v-model="currentChart.name" type="text">
+            </label>
+            <button @click="saveChart">保存</button>
+
+            <!-- 項目（ラベル）編集フォーム -->
+            <h2>項目（ラベル）の編集</h2>
+            <form @submit.prevent="updateLabels">
+                <label v-for="(label, index) in currentChart.labels" :key="index">
+                    項目 {{ index + 1 }}: 
+                    <input v-model="currentChart.labels[index]" type="text" required>
+                </label><br>
+                <button type="submit">項目を更新</button>
+            </form>
+
+            <!-- CRUD用フォーム -->
+            <h2>データセットの追加/編集</h2>
+            <form @submit.prevent="addOrUpdateDataset">
+                <label>
+                    ラベル: 
+                    <input v-model="form.label" type="text" required>
+                </label><br>
+                <label v-for="(item, index) in currentChart.labels" :key="index">
+                    {{ item }}: 
+                    <input v-model.number="form.data[index]" type="number" required>
+                </label><br>
+                <button type="submit">{{ editMode ? '更新' : '追加' }}</button>
+                <button type="button" @click="resetForm">リセット</button>
+            </form>
+
+            <!-- データセットのリストと削除機能 -->
+            <h2>データセット一覧</h2>
+            <ul>
+                <li v-for="(dataset, index) in currentChart.datasets" :key="dataset.label">
+                    {{ dataset.label }}: {{ dataset.data.join(', ') }}
+                    <button @click="editDataset(index)">編集</button>
+                    <button @click="deleteDataset(index)">削除</button>
+                </li>
+            </ul>
+        </div>
+
+        <!-- サンプルデータ出力と新規追加 -->
+        <h2>サンプルデータ機能</h2>
+        <button @click="outputSampleData">サンプルデータ出力</button>
+        <button @click="addSampleChart">サンプルデータを新規追加</button>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    // 複数チャートを保存
+                    charts: [
+                        {
+                            name: 'チャート 1',
+                            labels: ['項目1', '項目2', '項目3', '項目4', '項目5'],
+                            datasets: [
+                                {
+                                    label: 'データセット 1',
+                                    data: [65, 59, 90, 81, 56],
+                                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    pointBackgroundColor: 'rgb(255, 99, 132)'
+                                }
+                            ]
+                        }
+                    ],
+                    selectedChartIndex: 0, // 現在選択されているチャートのインデックス
+                    form: {
+                        label: '',
+                        data: [0, 0, 0, 0, 0]
+                    },
+                    editMode: false,
+                    editIndex: null,
+                    radarChart: null,
+                    errorMessage: '', // エラーメッセージ用
+                    isEditOpen: false // スライドメニューの開閉状態
+                };
+            },
+            computed: {
+                currentChart() {
+                    return this.charts[this.selectedChartIndex];
+                }
+            },
+            mounted() {
+                this.renderRadarChart();
+            },
+            methods: {
+                // レーダーチャートをレンダリング
+                renderRadarChart() {
+                    const ctx = document.getElementById('radarChart').getContext('2d');
+                    
+                    if (this.radarChart) {
+                        this.radarChart.destroy();  // 既存のチャートを削除
+                    }
+
+                    this.radarChart = new Chart(ctx, {
+                        type: 'radar',
+                        data: {
+                            labels: this.currentChart.labels,
+                            datasets: this.currentChart.datasets
+                        },
+                        options: {
+                            elements: {
+                                line: {
+                                    borderWidth: 3
+                                }
+                            },
+                            scales: {
+                                r: {
+                                    angleLines: {
+                                        display: true
+                                    },
+                                    suggestedMin: 0,
+                                    suggestedMax: 100
+                                }
+                            }
+                        }
+                    });
+                },
+                // 新規チャートの作成
+                createNewChart() {
+                    const newChart = {
+                        name: `新しいチャート ${this.charts.length + 1}`,
+                        labels: ['項目1', '項目2', '項目3', '項目4', '項目5'],
+                        datasets: []
+                    };
+                    this.charts.push(newChart);
+                    this.selectedChartIndex = this.charts.length - 1;
+                    this.renderRadarChart();
+                },
+                // チャートの選択
+                selectChart(index) {
+                    this.selectedChartIndex = index;
+                    this.renderRadarChart();
+                },
+                // チャートの保存
+                saveChart() {
+                    if (!this.currentChart.name.trim()) {
+                        this.errorMessage = 'チャート名を空にすることはできません';
+                        return;
+                    }
+                    this.errorMessage = '';
+                    this.renderRadarChart();
+                },
+                // データセットの追加または編集
+                addOrUpdateDataset() {
+                    if (this.editMode) {
+                        Object.assign(this.currentChart.datasets[this.editIndex], this.form);
+                    } else {
+                        this.currentChart.datasets.push({ ...this.form });
+                    }
+                    this.resetForm();
+                    this.renderRadarChart();
+                },
+                // データセットの編集開始
+                editDataset(index) {
+                    this.editMode = true;
+                    this.editIndex = index;
+                    Object.assign(this.form, this.currentChart.datasets[index]);
+                },
+                // データセットの削除
+                deleteDataset(index) {
+                    this.currentChart.datasets.splice(index, 1);
+                    this.renderRadarChart();
+                },
+                // 項目（ラベル）の更新
+                updateLabels() {
+                    this.renderRadarChart();
+                },
+                // フォームのリセット
+                resetForm() {
+                    this.form = {
+                        label: '',
+                        data: [0, 0, 0, 0, 0]
+                    };
+                    this.editMode = false;
+                    this.editIndex = null;
+                },
+                // スライドメニューの表示/非表示を切り替え
+                toggleEdit() {
+                    this.isEditOpen = !this.isEditOpen;
+                },
+                // サンプルデータの出力
+                outputSampleData() {
+                    console.log(JSON.stringify(this.charts, null, 2));
+                    alert("サンプルデータをコンソールに出力しました。");
+                },
+                // サンプルデータの新規追加
+                addSampleChart() {
+                    const sampleChart = {
+                        name: 'サンプルチャート',
+                        labels: ['項目1', '項目2', '項目3', '項目4', '項目5'],
+                        datasets: [
+                            {
+                                label: 'サンプルデータセット',
+                                data: [70, 65, 80, 85, 90],
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: 'rgb(54, 162, 235)',
+                                pointBackgroundColor: 'rgb(54, 162, 235)'
+                            }
+                        ]
+                    };
+                    this.charts.push(sampleChart);
+                    this.selectedChartIndex = this.charts.length - 1;
+                    this.renderRadarChart();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
