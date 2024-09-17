@@ -1,0 +1,282 @@
+以下をvue3のHTMLファイル1枚で実装。
+
+・ユーザー機能(ユーザー名は1-20文字)
+・タグ機能(1-10文字、タグは1記事に複数登録可能で最大10個登録可能)
+・自由記述(1-100文字)
+・ライク機能(1ユーザー1記事に1回のみ)
+・ブックマーク機能
+・メールアドレス登録(メールアドレス)
+・作成日時(asc/desc 終了日時に自動で非表示になる utc)
+
+・複合フィルタリングが可能
+ ライクした記事を作成日時でソート、ライクかつブックマークかつ複数のタグ
+
+・全てのフォームを一つの関数でvalidation
+・データ構造はalasql.jsで実装
+
+
+
+
+sqlのCREATE文でそれぞれのテーブルを定義するコードを追加。
+usersテーブルを追加して。usersテーブルにはuidがあり、uidでログイン状態を確認する。
+ログイン/ログアウトボタンを追加。
+サンプルデータ挿入のコードにuser1でログインするコードを追加。
+
+filterは1つの関数に集約。
+テーブルを分離。
+テーブルは、ユーザー、記事、タグ、ライク、ブックマーク、メールアドレス、それぞれのテーブルを作成。
+リレーションする構造にして。
+
+ユーザーフィルタリングを追加。ユーザーフィルタは文字列でフィルター。
+タグフィルタリングを追加して。タグフィルタは複数のorでフィルタ。フィルタ対象のタグは追加と削除できる。
+作成日でasc/descのソートできる機能を追加。
+
+記事作成は右上のボタンを押したら編集画面がスライドで表示するように変更。
+ログイン中の記事に関しては削除ボタンが記事一覧の中に表示されるように変更。
+削除ボタンを押してユーザーを確認の上該当の記事を削除する機能を追加。
+
+以下のsql文を、上記のコードから出力して。
+drop if exists
+create
+insert
+
+上記の全てのsqlとvadlidationのコードからnode.js/express.js/better-sqlite3でCRUDのエンドポイントを作って。コードは関数を多様してそれぞれのエンドポイントがtry/catchを含めて5行以内になるように出力して
+read_allのエンドポイント以外は全部postで実装。エンドポイント内でvalidationをして適宜エラーを返すようにして。
+
+
+
+
+
+const Database = require('better-sqlite3');
+const db = new Database('database.db', { verbose: console.log });
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL,
+    tags TEXT NOT NULL,
+    content TEXT NOT NULL,
+    email TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    likes INTEGER DEFAULT 0,
+    bookmarked BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id INTEGER,
+    tag TEXT NOT NULL,
+    FOREIGN KEY (article_id) REFERENCES articles (id)
+);
+CREATE TABLE IF NOT EXISTS bookmarks (
+    user_id INTEGER,
+    article_id INTEGER,
+    PRIMARY KEY (user_id, article_id),
+    FOREIGN KEY (user_id) REFERENCES users (id),
+    FOREIGN KEY (article_id) REFERENCES articles (id)
+);
+`);
+
+module.exports = db;
+
+
+
+const express = require('express');
+const db = require('./db');
+const app = express();
+
+app.use(express.json());
+
+// Helper Functions
+const validateArticle = (article) => {
+  if (!article.username || !article.content || !article.email || !Array.isArray(article.tags) ||
+      article.username.length < 1 || article.username.length > 20 ||
+      article.tags.length > 10 || article.content.length < 1 || article.content.length > 100 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(article.email)) {
+    throw new Error('Invalid article data');
+  }
+};
+
+// Create User
+app.post('/users', (req, res) => {
+  try {
+    if (!req.body.username) throw new Error('Username required');
+    db.prepare('INSERT INTO users (username) VALUES (?)').run(req.body.username);
+    res.status(201).send('User created');
+  } catch (error) {
+    res.status(400).send(error.message);
+  }
+});
+
+// Create Article
+app.post('/articles', (req, res) => {
+  try {
+    validateArticle(req.body);
+    const { username, tags, content, email } = req.body;
+    db.prepare('INSERT INTO articles (id, username, tags, content, email, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(Date.now(), username, JSON.stringify(tags), content, email, new Date().toISOString());
+    res.status(201).send('Article created');
+  } catch (error) {
+    res.status(400).send(error.message);
+  }
+});
+
+// Create Tag
+app.post('/tags', (req, res) => {
+  try {
+    if (!req.body.article_id || !req.body.tag) throw new Error('Article ID and tag required');
+    db.prepare('INSERT INTO tags (article_id, tag) VALUES (?, ?)').run(req.body.article_id, req.body.tag);
+    res.status(201).send('Tag created');
+  } catch (error) {
+    res.status(400).send(error.message);
+  }
+});
+
+// Create Bookmark
+app.post('/bookmarks', (req, res) => {
+  try {
+    if (!req.body.user_id || !req.body.article_id) throw new Error('User ID and Article ID required');
+    db.prepare('INSERT INTO bookmarks (user_id, article_id) VALUES (?, ?)').run(req.body.user_id, req.body.article_id);
+    res.status(201).send('Bookmark created');
+  } catch (error) {
+    res.status(400).send(error.message);
+  }
+});
+
+// Read All Users
+app.get('/users', (req, res) => {
+  try {
+    const users = db.prepare('SELECT * FROM users').all();
+    res.json(users);
+  } catch (error) {
+    res.status(500).send('Error fetching users');
+  }
+});
+
+// Read All Articles
+app.get('/articles', (req, res) => {
+  try {
+    const articles = db.prepare('SELECT * FROM articles').all();
+    res.json(articles);
+  } catch (error) {
+    res.status(500).send('Error fetching articles');
+  }
+});
+
+// Read All Tags
+app.get('/tags', (req, res) => {
+  try {
+    const tags = db.prepare('SELECT * FROM tags').all();
+    res.json(tags);
+  } catch (error) {
+    res.status(500).send('Error fetching tags');
+  }
+});
+
+// Read All Bookmarks
+app.get('/bookmarks', (req, res) => {
+  try {
+    const bookmarks = db.prepare('SELECT * FROM bookmarks').all();
+    res.json(bookmarks);
+  } catch (error) {
+    res.status(500).send('Error fetching bookmarks');
+  }
+});
+
+// Read User by ID
+app.get('/users/:id', (req, res) => {
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    res.json(user);
+  } catch (error) {
+    res.status(500).send('Error fetching user');
+  }
+});
+
+// Read Article by ID
+app.get('/articles/:id', (req, res) => {
+  try {
+    const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(req.params.id);
+    res.json(article);
+  } catch (error) {
+    res.status(500).send('Error fetching article');
+  }
+});
+
+// Read Tag by ID
+app.get('/tags/:id', (req, res) => {
+  try {
+    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(req.params.id);
+    res.json(tag);
+  } catch (error) {
+    res.status(500).send('Error fetching tag');
+  }
+});
+
+// Read Bookmark by User ID
+app.get('/bookmarks/:user_id', (req, res) => {
+  try {
+    const bookmarks = db.prepare('SELECT * FROM bookmarks WHERE user_id = ?').all(req.params.user_id);
+    res.json(bookmarks);
+  } catch (error) {
+    res.status(500).send('Error fetching bookmarks');
+  }
+});
+
+// Update Article
+app.post('/articles/:id', (req, res) => {
+  try {
+    validateArticle(req.body);
+    const { username, tags, content, email } = req.body;
+    db.prepare('UPDATE articles SET username = ?, tags = ?, content = ?, email = ?, likes = ?, bookmarked = ? WHERE id = ?')
+      .run(username, JSON.stringify(tags), content, email, req.body.likes, req.body.bookmarked, req.params.id);
+    res.send('Article updated');
+  } catch (error) {
+    res.status(400).send(error.message);
+  }
+});
+
+// Delete User
+app.post('/users/:id/delete', (req, res) => {
+  try {
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    res.send('User deleted');
+  } catch (error) {
+    res.status(500).send('Error deleting user');
+  }
+});
+
+// Delete Article
+app.post('/articles/:id/delete', (req, res) => {
+  try {
+    db.prepare('DELETE FROM articles WHERE id = ?').run(req.params.id);
+    res.send('Article deleted');
+  } catch (error) {
+    res.status(500).send('Error deleting article');
+  }
+});
+
+// Delete Tag
+app.post('/tags/:id/delete', (req, res) => {
+  try {
+    db.prepare('DELETE FROM tags WHERE id = ?').run(req.params.id);
+    res.send('Tag deleted');
+  } catch (error) {
+    res.status(500).send('Error deleting tag');
+  }
+});
+
+// Delete Bookmark
+app.post('/bookmarks/delete', (req, res) => {
+  try {
+    db.prepare('DELETE FROM bookmarks WHERE user_id = ? AND article_id = ?').run(req.body.user_id, req.body.article_id);
+    res.send('Bookmark deleted');
+  } catch (error) {
+    res.status(500).send('Error deleting bookmark');
+  }
+});
+
+app.listen(3000, () => console.log('Server running on port 3000'));
