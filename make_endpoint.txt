@@ -29,7 +29,18 @@ tags
  送信するparamsをconsole.log
  送信するparamsをバリデーション
 
- 
+
+const crypto = require('crypto');
+
+// Function to hash UID
+const hashUid = (uid) => crypto.createHash('sha256').update(uid).digest('hex');
+
+// Function to get user_id from hashed UID
+const getUserIdFromHashedUid = (hashedUid) => {
+  const result = db.prepare('SELECT id FROM users WHERE uid = ?').get(hashedUid);
+  return result ? result.id : null;
+};
+
  
 app.post('/api/init-tables', async (req, res) => {
   try {
@@ -186,40 +197,68 @@ app.post('/api/insert-sample-data', async (req, res) => {
 });
 
 app.post('/users', (req, res) => { 
-  try { db.prepare('INSERT INTO users (uid, created_at, updated_at) VALUES (?, ?, ?)').run(req.body.uid, new Date().toISOString(), new Date().toISOString());
+  try {   console.log('POST /users req.body:', req.body); // Debugging line
+    db.prepare('INSERT INTO users (uid, created_at, updated_at) VALUES (?, ?, ?)').run(hashUid(req.body.uid), new Date().toISOString(), new Date().toISOString());
     res.json({ message: 'User created' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {     res.status(500).json({ error: err.message });   }
 });
 
 app.post('/articles', (req, res) => { 
-  try { if (req.body.content.length < 1 || req.body.content.length > 100) throw new Error('Invalid content length');
-    db.prepare('INSERT INTO articles (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.user_id, req.body.content, new Date().toISOString(), new Date().toISOString());
+  try {   console.log('POST /articles req.body:', req.body); // Debugging line
+    if (!getUserIdFromHashedUid(hashUid(req.body.uid))) throw new Error('Invalid user');
+    if (req.body.content.length < 1 || req.body.content.length > 1000) throw new Error('Invalid content length');
+    db.prepare('INSERT INTO articles (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      getUserIdFromHashedUid(hashUid(req.body.uid)), 
+      req.body.content, 
+      new Date().toISOString(), 
+      new Date().toISOString()
+    );
     res.json({ message: 'Article created' });
-  } catch (err) {res.status(500).json({ error: err.message });} 
+  } catch (err) {    res.status(500).json({ error: err.message });  } 
 });
 
 app.post('/mails', (req, res) => { 
-  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  try { if (!validateEmail(req.body.mail)) throw new Error('Invalid email');
-    db.prepare('INSERT INTO mails (article_id, mail, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.article_id, req.body.mail, new Date().toISOString(), new Date().toISOString());
+  try { const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);  console.log('POST /mails req.body:', req.body); // Debugging line
+    if (!validateEmail(req.body.mail)) throw new Error('Invalid email');
+    db.prepare('INSERT INTO mails (article_id, mail, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      req.body.article_id, 
+      req.body.mail, 
+      new Date().toISOString(), 
+      new Date().toISOString()
+    );
     res.json({ message: 'Mail created' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {     res.status(500).json({ error: err.message });   }
 });
 
 app.post('/likes', (req, res) => { 
-  try { db.prepare('INSERT INTO likes (user_id, article_id, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.user_id, req.body.article_id, new Date().toISOString(), new Date().toISOString());
+  try {   console.log('POST /likes req.body:', req.body); // Debugging line
+    if (!getUserIdFromHashedUid(hashUid(req.body.uid))) throw new Error('Invalid user');
+    db.prepare('INSERT INTO likes (user_id, article_id, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      getUserIdFromHashedUid(hashUid(req.body.uid)), 
+      req.body.article_id, 
+      new Date().toISOString(), 
+      new Date().toISOString()
+    );
     res.json({ message: 'Like added' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {     res.status(500).json({ error: err.message });   }
 });
 
 app.post('/bookmarks', (req, res) => { 
-  try { db.prepare('INSERT INTO bookmarks (user_id, article_id, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.user_id, req.body.article_id, new Date().toISOString(), new Date().toISOString());
+  try {   console.log('POST /bookmarks req.body:', req.body); // Debugging line
+    if (!getUserIdFromHashedUid(hashUid(req.body.uid))) throw new Error('Invalid user');
+    db.prepare('INSERT INTO bookmarks (user_id, article_id, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      getUserIdFromHashedUid(hashUid(req.body.uid)), 
+      req.body.article_id, 
+      new Date().toISOString(), 
+      new Date().toISOString()
+    );
     res.json({ message: 'Bookmark added' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {     res.status(500).json({ error: err.message });   }
 });
 
+// GET /articles
 app.get('/articles', (req, res) => {
-  try {
+  try {  console.log('GET /articles req.query:', req.query); // Debugging line
     const query = `
       SELECT 
         a.id AS article_id, a.content, a.created_at, a.updated_at,
@@ -239,7 +278,5 @@ app.get('/articles', (req, res) => {
     `;
     const articles = db.prepare(query).all();
     res.json(articles);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) {    res.status(500).json({ error: err.message });  }
 });
