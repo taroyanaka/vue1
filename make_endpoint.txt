@@ -16,6 +16,7 @@ tags
   id, name, created_at, updated_at
 !!!それぞれのテーブルに対するCRUD対応表(それが対応するエンドポイント設計になる)を作る
 =>基本的に全てのユーザーに対して紐づく全てをreadするget_allエンドポイントでのみreadを実装する(設計が大幅に容易になる)
+=>基本的に全てのエンドポイント(get_all除く)にuidのパラメーターとそのチェックを必須とする
 users
   create, delete
 articles
