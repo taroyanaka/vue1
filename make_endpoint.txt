@@ -1,0 +1,245 @@
+エンドポイント制作手順
+!!!テーブル設計(例は以下の通り)
+users
+ id, uid, created_at, updated_at
+articles
+ id, user_id, content, created_at, updated_at
+mails
+  id, article_id, mail, created_at, updated_at
+likes
+  id, user_id, article_id, created_at, updated_at
+bookmarks
+  id, user_id, article_id, created_at, updated_at
+articles_tags
+  id, article_id, tag_id, created_at, updated_at
+tags
+  id, name, created_at, updated_at
+!!!バリデーションルール明文化
+!!!エンドポイント作成
+ 注意事項
+ initエンドポイント(drop if existsと制約と外部キー制約)
+ sampleをinsertするエンドポイント
+ READはgetallエンドポイントでツリー構造のデータを取得
+ hash化する(const hashUid = (uid) => require('crypto').createHash('sha256').update(uid).digest('hex');)
+ try-catchでエラーハンドリング(1エンドポイント5行以内)
+ 1行目で受け取るparamsをデバッグのために全てconsole.log
+ 2行目でparamsをバリデーション
+!!!エンドポイントからクライアント側のコード生成
+ try-catchでエラーハンドリング(1fetchで3行以内)
+ 送信するparamsをconsole.log
+ 送信するparamsをバリデーション
+
+ 
+ 
+app.post('/api/init-tables', async (req, res) => {
+  try {
+    // Drop existing tables if they exist
+    await db.exec('DROP TABLE IF EXISTS users;');
+    await db.exec('DROP TABLE IF EXISTS articles;');
+    await db.exec('DROP TABLE IF EXISTS mails;');
+    await db.exec('DROP TABLE IF EXISTS likes;');
+    await db.exec('DROP TABLE IF EXISTS bookmarks;');
+    await db.exec('DROP TABLE IF EXISTS articles_tags;');
+    await db.exec('DROP TABLE IF EXISTS tags;');
+
+    // Create tables with constraints
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        uid TEXT NOT NULL CHECK(length(uid) = 64), 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS articles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_id INTEGER NOT NULL, 
+        content TEXT NOT NULL CHECK(length(content) >= 1 AND length(content) <= 1000), 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS mails (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        article_id INTEGER NOT NULL, 
+        mail TEXT NOT NULL CHECK(length(mail) >= 1 AND length(mail) <= 255), 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+      );
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_id INTEGER NOT NULL, 
+        article_id INTEGER NOT NULL, 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+      );
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_id INTEGER NOT NULL, 
+        article_id INTEGER NOT NULL, 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+      );
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS articles_tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        article_id INTEGER NOT NULL, 
+        tag_id INTEGER NOT NULL, 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+      );
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        name TEXT NOT NULL CHECK(length(name) >= 1 AND length(name) <= 100), 
+        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    res.status(200).send({ message: 'Tables initialized successfully' });
+  } catch (error) {
+    console.error('Error initializing tables:', error);
+    res.status(500).send({ message: 'Error initializing tables', error });
+  }
+});
+
+
+app.post('/api/insert-sample-data', async (req, res) => {
+  try {
+    await db.exec(`
+      INSERT INTO users (uid, created_at, updated_at) VALUES 
+        ('user_1', datetime('now'), datetime('now')), 
+        ('user_2', datetime('now'), datetime('now')), 
+        ('user_3', datetime('now'), datetime('now'));
+    `);
+
+    await db.exec(`
+      INSERT INTO articles (user_id, content, created_at, updated_at) VALUES 
+        (1, 'Article 1 content', datetime('now'), datetime('now')), 
+        (2, 'Article 2 content', datetime('now'), datetime('now')), 
+        (3, 'Article 3 content', datetime('now'), datetime('now'));
+    `);
+
+    await db.exec(`
+      INSERT INTO mails (article_id, mail, created_at, updated_at) VALUES 
+        (1, 'mail1@example.com', datetime('now'), datetime('now')), 
+        (2, 'mail2@example.com', datetime('now'), datetime('now')), 
+        (3, 'mail3@example.com', datetime('now'), datetime('now'));
+    `);
+
+    await db.exec(`
+      INSERT INTO likes (user_id, article_id, created_at, updated_at) VALUES 
+        (1, 1, datetime('now'), datetime('now')), 
+        (2, 2, datetime('now'), datetime('now')), 
+        (3, 3, datetime('now'), datetime('now'));
+    `);
+
+    await db.exec(`
+      INSERT INTO bookmarks (user_id, article_id, created_at, updated_at) VALUES 
+        (1, 1, datetime('now'), datetime('now')), 
+        (2, 2, datetime('now'), datetime('now')), 
+        (3, 3, datetime('now'), datetime('now'));
+    `);
+
+    await db.exec(`
+      INSERT INTO articles_tags (article_id, tag_id, created_at, updated_at) VALUES 
+        (1, 1, datetime('now'), datetime('now')), 
+        (2, 2, datetime('now'), datetime('now')), 
+        (3, 3, datetime('now'), datetime('now'));
+    `);
+
+    await db.exec(`
+      INSERT INTO tags (name, created_at, updated_at) VALUES 
+        ('Tag 1', datetime('now'), datetime('now')), 
+        ('Tag 2', datetime('now'), datetime('now')), 
+        ('Tag 3', datetime('now'), datetime('now'));
+    `);
+
+    res.status(200).send({ message: 'Sample data inserted successfully' });
+  } catch (error) {
+    console.error('Error inserting sample data:', error);
+    res.status(500).send({ message: 'Error inserting sample data', error });
+  }
+});
+
+app.post('/users', (req, res) => { 
+  try { db.prepare('INSERT INTO users (uid, created_at, updated_at) VALUES (?, ?, ?)').run(req.body.uid, new Date().toISOString(), new Date().toISOString());
+    res.json({ message: 'User created' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/articles', (req, res) => { 
+  try { if (req.body.content.length < 1 || req.body.content.length > 100) throw new Error('Invalid content length');
+    db.prepare('INSERT INTO articles (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.user_id, req.body.content, new Date().toISOString(), new Date().toISOString());
+    res.json({ message: 'Article created' });
+  } catch (err) {res.status(500).json({ error: err.message });} 
+});
+
+app.post('/mails', (req, res) => { 
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  try { if (!validateEmail(req.body.mail)) throw new Error('Invalid email');
+    db.prepare('INSERT INTO mails (article_id, mail, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.article_id, req.body.mail, new Date().toISOString(), new Date().toISOString());
+    res.json({ message: 'Mail created' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/likes', (req, res) => { 
+  try { db.prepare('INSERT INTO likes (user_id, article_id, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.user_id, req.body.article_id, new Date().toISOString(), new Date().toISOString());
+    res.json({ message: 'Like added' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/bookmarks', (req, res) => { 
+  try { db.prepare('INSERT INTO bookmarks (user_id, article_id, created_at, updated_at) VALUES (?, ?, ?, ?)').run(req.body.user_id, req.body.article_id, new Date().toISOString(), new Date().toISOString());
+    res.json({ message: 'Bookmark added' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/articles', (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        a.id AS article_id, a.content, a.created_at, a.updated_at,
+        u.uid AS author_uid,
+        m.mail,
+        GROUP_CONCAT(DISTINCT t.name) AS tags,
+        COUNT(DISTINCT l.id) AS likes_count,
+        COUNT(DISTINCT b.id) AS bookmarks_count
+      FROM articles a
+      JOIN users u ON a.user_id = u.id
+      LEFT JOIN mails m ON a.id = m.article_id
+      LEFT JOIN likes l ON a.id = l.article_id
+      LEFT JOIN bookmarks b ON a.id = b.article_id
+      LEFT JOIN articles_tags at ON a.id = at.article_id
+      LEFT JOIN tags t ON at.tag_id = t.id
+      GROUP BY a.id;
+    `;
+    const articles = db.prepare(query).all();
+    res.json(articles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
