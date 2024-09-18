@@ -14,6 +14,22 @@ articles_tags
   id, article_id, tag_id, created_at, updated_at
 tags
   id, name, created_at, updated_at
+!!!それぞれのテーブルに対するCRUD対応表(それが対応するエンドポイント設計になる)を作る
+=>基本的に全てのユーザーに対して紐づく全てをreadするget_allエンドポイントでのみreadを実装する(設計が大幅に容易になる)
+users
+  create, delete
+articles
+  create, update, delete
+mails
+  create, update, delete
+likes
+  create, delete
+bookmarks
+  create, delete
+articles_tags
+  create, delete
+tags
+  create, delete
 !!!バリデーションルール明文化
 !!!エンドポイント作成
  注意事項
