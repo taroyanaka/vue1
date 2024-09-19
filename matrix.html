@@ -4,7 +4,7 @@
     <title>Vue Twitter-like App</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
+    <!-- <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -43,7 +43,7 @@
         .sample-buttons {
             margin-bottom: 20px;
         }
-    </style>
+    </style> -->
 </head>
 <body>
     <div id="app">
@@ -58,26 +58,23 @@
             <input type="file" @change="on_file_change">
             <button @click="create_post">Post</button>
         </div>
-        <div v-for="post in posts" :key="post.id" class="post">
-            <p v-if="post.text">{{ post.text }}</p>
-            <img v-if="post.image" :src="post.image" />
-            <div class="actions">
-                <button @click="repost(post)">Repost</button>
-            </div>
-            <div v-if="post.reposts.length > 0">
-                <h3>Reposts:</h3>
-                <div v-for="repost in post.reposts" :key="repost.id" class="repost">
-                    <p v-if="repost.text">{{ repost.text }}</p>
-                    <img v-if="repost.image" :src="repost.image" />
-                    <div class="actions">
-                        <button @click="repost(repost)">Repost</button>
-                    </div>
+        <div>
+            <h2>Posts</h2>
+            <div v-for="post in posts" :key="post.id" class="post">
+                <p v-if="post.text">{{ post.text }}</p>
+                <img v-if="post.image" :src="post.image" />
+                <div class="actions">
+                    <button @click="repost(post)">Repost</button>
+                    <button @click="save_text(post.text)">Save Text</button>
+                    <button @click="copy_to_clipboard(post.text)">Copy Text</button>
+                    <button v-if="post.image" @click="save_image(post.image)">Save Image</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
     <script>
         const app = Vue.createApp({
             data() {
@@ -104,10 +101,9 @@
                             id: Date.now(),
                             text: this.new_post_text.trim(),
                             image: this.new_post_image,
-                            timestamp: Date.now(),
-                            reposts: []
+                            timestamp: Date.now()
                         };
-                        this.posts.push(new_post);
+                        this.posts.unshift(new_post); // Add to the beginning of the posts array
                         this.new_post_text = '';
                         this.new_post_image = null;
                     }
@@ -117,13 +113,9 @@
                         id: Date.now(),
                         text: post.text,
                         image: post.image,
-                        timestamp: Date.now(),
-                        reposts: []
+                        timestamp: Date.now()
                     };
-                    const existing_post = this.posts.find(p => p.id === post.id);
-                    if (existing_post) {
-                        existing_post.reposts.push(new_repost);
-                    }
+                    this.posts.unshift(new_repost); // Add to the beginning of the posts array
                 },
                 add_sample_text_posts() {
                     const sample_texts = [
@@ -144,10 +136,9 @@
                             id: Date.now() + Math.random(),
                             text: text,
                             image: null,
-                            timestamp: Date.now(),
-                            reposts: []
+                            timestamp: Date.now()
                         };
-                        this.posts.push(new_post);
+                        this.posts.unshift(new_post); // Add to the beginning of the posts array
                     });
                 },
                 add_sample_image_posts() {
@@ -157,18 +148,35 @@
                             id: Date.now() + Math.random(),
                             text: null,
                             image: sample_image_url,
-                            timestamp: Date.now(),
-                            reposts: []
+                            timestamp: Date.now()
                         };
-                        this.posts.push(new_post);
+                        this.posts.unshift(new_post); // Add to the beginning of the posts array
                     }
                 },
                 clean_up_posts() {
                     const now = Date.now();
                     this.posts = this.posts.filter(post => now - post.timestamp < 5000);
-                    this.posts.forEach(post => {
-                        post.reposts = post.reposts.filter(repost => now - repost.timestamp < 5000);
+                },
+                save_text(text) {
+                    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                    saveAs(blob, 'post.txt');
+                },
+                copy_to_clipboard(text) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        alert('Text copied to clipboard!');
+                    }).catch(err => {
+                        console.error('Failed to copy text: ', err);
                     });
+                },
+                save_image(image_url) {
+                    fetch(image_url)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            saveAs(blob, 'image.png');
+                        })
+                        .catch(err => {
+                            console.error('Failed to save image: ', err);
+                        });
                 }
             },
             mounted() {
