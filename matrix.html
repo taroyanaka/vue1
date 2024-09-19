@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vue Twitter-like App</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        #app {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .post, .repost {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            padding: 10px;
+            position: relative;
+        }
+        .post img, .repost img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .post .actions, .repost .actions {
+            margin-top: 10px;
+        }
+        .post textarea, .repost textarea {
+            width: calc(100% - 22px);
+            height: 60px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        .post button, .repost button {
+            margin-right: 10px;
+        }
+        .sample-buttons {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Vue Twitter-like App</h1>
+        <div class="sample-buttons">
+            <button @click="add_sample_text_posts">Add Sample Text Posts</button>
+            <button @click="add_sample_image_posts">Add Sample Image Posts</button>
+        </div>
+        <div>
+            <h2>Create a Post</h2>
+            <textarea v-model="new_post_text" placeholder="What's on your mind?"></textarea>
+            <input type="file" @change="on_file_change">
+            <button @click="create_post">Post</button>
+        </div>
+        <div v-for="post in posts" :key="post.id" class="post">
+            <p v-if="post.text">{{ post.text }}</p>
+            <img v-if="post.image" :src="post.image" />
+            <div class="actions">
+                <button @click="repost(post)">Repost</button>
+            </div>
+            <div v-if="post.reposts.length > 0">
+                <h3>Reposts:</h3>
+                <div v-for="repost in post.reposts" :key="repost.id" class="repost">
+                    <p v-if="repost.text">{{ repost.text }}</p>
+                    <img v-if="repost.image" :src="repost.image" />
+                    <div class="actions">
+                        <button @click="repost(repost)">Repost</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.js"></script>
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    new_post_text: '',
+                    new_post_image: null,
+                    posts: []
+                };
+            },
+            methods: {
+                on_file_change(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            this.new_post_image = e.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                },
+                create_post() {
+                    if (this.new_post_text.trim() || this.new_post_image) {
+                        const new_post = {
+                            id: Date.now(),
+                            text: this.new_post_text.trim(),
+                            image: this.new_post_image,
+                            timestamp: Date.now(),
+                            reposts: []
+                        };
+                        this.posts.push(new_post);
+                        this.new_post_text = '';
+                        this.new_post_image = null;
+                    }
+                },
+                repost(post) {
+                    const new_repost = {
+                        id: Date.now(),
+                        text: post.text,
+                        image: post.image,
+                        timestamp: Date.now(),
+                        reposts: []
+                    };
+                    const existing_post = this.posts.find(p => p.id === post.id);
+                    if (existing_post) {
+                        existing_post.reposts.push(new_repost);
+                    }
+                },
+                add_sample_text_posts() {
+                    const sample_texts = [
+                        "Sample text post 1",
+                        "Sample text post 2",
+                        "Sample text post 3",
+                        "Sample text post 4",
+                        "Sample text post 5",
+                        "Sample text post 6",
+                        "Sample text post 7",
+                        "Sample text post 8",
+                        "Sample text post 9",
+                        "Sample text post 10"
+                    ];
+
+                    sample_texts.forEach(text => {
+                        const new_post = {
+                            id: Date.now() + Math.random(),
+                            text: text,
+                            image: null,
+                            timestamp: Date.now(),
+                            reposts: []
+                        };
+                        this.posts.push(new_post);
+                    });
+                },
+                add_sample_image_posts() {
+                    const sample_image_url = "https://via.placeholder.com/600x400.png?text=Sample+Image"; // Placeholder image URL
+                    for (let i = 1; i <= 10; i++) {
+                        const new_post = {
+                            id: Date.now() + Math.random(),
+                            text: null,
+                            image: sample_image_url,
+                            timestamp: Date.now(),
+                            reposts: []
+                        };
+                        this.posts.push(new_post);
+                    }
+                },
+                clean_up_posts() {
+                    const now = Date.now();
+                    this.posts = this.posts.filter(post => now - post.timestamp < 5000);
+                    this.posts.forEach(post => {
+                        post.reposts = post.reposts.filter(repost => now - repost.timestamp < 5000);
+                    });
+                }
+            },
+            mounted() {
+                this.clean_up_interval = setInterval(this.clean_up_posts, 5000);
+            },
+            beforeUnmount() {
+                clearInterval(this.clean_up_interval);
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
