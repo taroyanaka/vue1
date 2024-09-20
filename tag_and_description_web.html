@@ -119,14 +119,29 @@
       <button @click="toggleBookmark(article)">ブックマーク</button>
       <button v-if="loggedInUser && article.username === loggedInUser.username" @click="confirmDelete(article)">削除</button>
     </div>
-</div>
+
+    <h2>API操作</h2>
+    <button @click="initDatabase">データベース初期化</button>
+    <button @click="insertSampleData">サンプルデータ挿入</button>
+    <button @click="readAllData">全データ取得</button>
+    <button @click="createMail({ uid: 'sample_uid', article_id: 1, mail: 'sample@mail.com' })">メール作成</button>
+    <button @click="updateMail({ uid: 'sample_uid', mail: 'updated@mail.com', id: 1 })">メール更新</button>
+    <button @click="deleteMail({ uid: 'sample_uid', id: 1 })">メール削除</button>
+    <button @click="createLike({ uid: 'sample_uid', article_id: 1 })">いいね作成</button>
+    <button @click="deleteLike({ uid: 'sample_uid', article_id: 1 })">いいね削除</button>
+    <button @click="createBookmark({ uid: 'sample_uid', article_id: 1 })">ブックマーク作成</button>
+    <button @click="deleteBookmark({ uid: 'sample_uid', article_id: 1 })">ブックマーク削除</button>
+    <button @click="createTag({ uid: 'sample_uid', tag: 'sample_tag' })">タグ作成</button>
+    <button @click="deleteTag({ uid: 'sample_uid', id: 1 })">タグ削除</button>
+  </div>
 
   <script>
-    const { createApp } = Vue;
+    const to_ary = (param) => JSON.parse(JSON.stringify(param));
 
-    createApp({
+    const app = Vue.createApp({
       data() {
         return {
+          res: null,
           newArticle: {
             id: null,
             username: '',
@@ -304,7 +319,7 @@
         },
         async callEndpoint(endpoint, method = 'POST', data = {}) {
           try {
-            const response = await fetch(`${this.endpoint}${endpoint}`, {
+            const response = await fetch(this.endpoint + endpoint, {
               method,
               headers: {
                 'Content-Type': 'application/json',
@@ -312,7 +327,7 @@
               body: JSON.stringify(data),
             });
             const result = await response.json();
-            console.log(result);
+            this.res = result;
             return result;
           } catch (error) {
             console.error('Error:', error);
@@ -325,7 +340,10 @@
           await this.callEndpoint('/app8/app8_insert_sample');
         },
         async readAllData() {
-          const data = await this.callEndpoint('/app8/app8_read_all', 'GET');
+          // /app8/app8_read_all を GETで読み込む
+          const data = await fetch(this.endpoint + '/app8/app8_read_all')
+          const json = await data.json()
+          this.res = json;
           console.log(data);
         },
         async createMail(mailData) {
