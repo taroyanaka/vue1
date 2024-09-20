@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue 3 Example</title>
+  <script src="https://unpkg.com/vue@3.2.33/dist/vue.global.prod.js"></script>
+  
+  <style>
+    .hidden { display: none; }
+    .slide-out-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 300px;
+      height: 100%;
+      background: white;
+      box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+      transform: translateX(100%);
+      transition: transform 0.3s ease-in-out;
+    }
+    .slide-out-panel.active {
+      transform: translateX(0);
+    }
+    .slide-out-panel button {
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div>
+      <label v-if="!loggedInUser">
+        ユーザーID:
+        <input v-model="loginUserId" type="text" placeholder="ユーザーID" />
+      </label>
+      <button v-if="!loggedInUser" @click="login">ログイン</button>
+      <button v-if="loggedInUser" @click="logout">ログアウト</button>
+      <span v-if="loggedInUser">ログイン中: {{ loggedInUser.username }}</span>
+    </div>
+
+    <button v-if="loggedInUser" @click="togglePanel">記事作成</button>
+
+    <div :class="{ 'slide-out-panel': true, 'active': isPanelActive }">
+      <button @click="togglePanel">閉じる</button>
+
+      <h1>記事作成</h1>
+      <form @submit.prevent="addArticle">
+        <label>
+          ユーザー名(1-20文字):
+          <input v-model="newArticle.username" type="text" required />
+        </label><br />
+
+        <label>
+          タグ(1-10文字、最大10個):
+          <input v-model="newTag" type="text" @keyup.enter="addTag" />
+          <button type="button" @click="addTag">タグ追加</button>
+          <ul>
+            <li v-for="(tag, index) in newArticle.tags" :key="index">{{ tag }}
+              <button @click="removeTag(index)">削除</button>
+            </li>
+          </ul>
+        </label><br />
+
+        <label>
+          記事内容(1-100文字):
+          <textarea v-model="newArticle.content" required></textarea>
+        </label><br />
+
+        <label>
+          メールアドレス:
+          <input v-model="newArticle.email" type="email" required />
+        </label><br />
+
+        <button type="submit">記事を追加</button>
+      </form>
+    </div>
+
+    <button @click="addSampleData">サンプル入力</button>
+
+    <h2>フィルタリングとソート</h2>
+    <label>
+      ユーザー名でフィルタ:
+      <input v-model="filters.username" type="text" placeholder="ユーザー名でフィルタ" />
+    </label><br />
+
+    <label>
+      タグでフィルタ:
+      <input v-model="newFilterTag" type="text" @keyup.enter="addFilterTag" placeholder="タグを追加" />
+      <button type="button" @click="addFilterTag">タグ追加</button>
+      <ul>
+        <li v-for="(tag, index) in filters.tags" :key="index">
+          {{ tag }} <button @click="removeFilterTag(index)">削除</button>
+        </li>
+      </ul>
+    </label><br />
+
+    <label>
+      ブックマークでフィルタ:
+      <input type="checkbox" v-model="filters.bookmarked" /> ブックマーク済み
+    </label><br />
+
+    <label>
+      作成日でソート:
+      <button @click="sortArticles('asc')">昇順</button>
+      <button @click="sortArticles('desc')">降順</button>
+    </label><br />
+
+    <h2>記事一覧</h2>
+    <div v-for="article in filteredArticles" :key="article.id" :class="{ hidden: isExpired(article) }">
+      <p>ユーザー名: {{ article.username }}</p>
+      <p>タグ: {{ article.tags.join(', ') }}</p>
+      <p>内容: {{ article.content }}</p>
+      <p>メール: {{ article.email }}</p>
+      <p>作成日時: {{ article.createdAt }}</p>
+      <p>ライク: {{ article.likes }}</p>
+      <p>ブックマーク: {{ article.bookmarked ? 'あり' : 'なし' }}</p>
+      <button @click="toggleLike(article)">ライク</button>
+      <button @click="toggleBookmark(article)">ブックマーク</button>
+      <button v-if="loggedInUser && article.username === loggedInUser.username" @click="confirmDelete(article)">削除</button>
+    </div>
+</div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          newArticle: {
+            id: null,
+            username: '',
+            tags: [],
+            content: '',
+            email: '',
+            createdAt: null,
+            likes: 0,
+            bookmarked: false,
+          },
+          newTag: '',
+          newFilterTag: '',
+          articles: [],
+          filters: {
+            username: '',
+            tags: [],
+            bookmarked: false,
+          },
+          sortDirection: 'desc', // Default sort direction
+          isPanelActive: false,
+          loginUserId: '',
+          loggedInUser: null,
+          endpoint: 'http://localhost:8000', // エンドポイントを追加
+        };
+      },
+      computed: {
+        filteredArticles() {
+          let articles = this.articles;
+
+          // User name filter
+          if (this.filters.username) {
+            articles = articles.filter(article => article.username.includes(this.filters.username));
+          }
+
+          // Tag filter
+          if (this.filters.tags.length) {
+            articles = articles.filter(article => 
+              this.filters.tags.some(tag => article.tags.includes(tag))
+            );
+          }
+
+          // Bookmarked filter
+          if (this.filters.bookmarked) {
+            articles = articles.filter(article => article.bookmarked);
+          }
+
+          // Sort by creation date
+          articles.sort((a, b) => {
+            const dateA = new Date(a.createdAt);
+            const dateB = new Date(b.createdAt);
+            return this.sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+          });
+
+          return articles;
+        },
+      },
+      methods: {
+        validate(article, type) {
+          const validations = {
+            form: () => {
+              return (
+                article.username.length >= 1 && article.username.length <= 20 &&
+                article.tags.length >= 1 && article.tags.length <= 10 &&
+                article.content.length >= 1 && article.content.length <= 100 &&
+                this.validateEmail(article.email)
+              );
+            },
+            email: () => this.validateEmail(article.email),
+          };
+
+          if (validations[type] && !validations[type]()) {
+            alert('入力内容が無効です');
+            return false;
+          }
+          return true;
+        },
+        validateEmail(email) {
+          const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          return re.test(email);
+        },
+        addArticle() {
+          if (!this.validate(this.newArticle, 'form')) return;
+
+          this.newArticle.id = Date.now();
+          this.newArticle.createdAt = new Date().toISOString();
+
+          this.articles.push({ ...this.newArticle });
+          this.resetForm();
+          this.togglePanel(); // Close panel after adding article
+        },
+        resetForm() {
+          this.newArticle = { id: null, username: '', tags: [], content: '', email: '', likes: 0, bookmarked: false };
+          this.newTag = '';
+        },
+        addTag() {
+          if (this.newTag.length >= 1 && this.newTag.length <= 10 && this.newArticle.tags.length < 10) {
+            this.newArticle.tags.push(this.newTag);
+            this.newTag = '';
+          } else {
+            alert('タグは1-10文字で、最大10個までです。');
+          }
+        },
+        removeTag(index) {
+          this.newArticle.tags.splice(index, 1);
+        },
+        addFilterTag() {
+          if (this.newFilterTag && !this.filters.tags.includes(this.newFilterTag)) {
+            this.filters.tags.push(this.newFilterTag);
+            this.newFilterTag = '';
+          } else {
+            alert('タグを入力してください、またはすでに存在します。');
+          }
+        },
+        removeFilterTag(index) {
+          this.filters.tags.splice(index, 1);
+        },
+        toggleLike(article) {
+          article.likes++;
+        },
+        toggleBookmark(article) {
+          article.bookmarked = !article.bookmarked;
+        },
+        isExpired(article) {
+          const now = new Date();
+          const createdAt = new Date(article.createdAt);
+          const diff = now - createdAt;
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          return hours > 48;
+        },
+        login() {
+          this.loggedInUser = { uid: this.loginUserId, username: this.loginUserId };
+        },
+        logout() {
+          this.loggedInUser = null;
+        },
+        togglePanel() {
+          this.isPanelActive = !this.isPanelActive;
+        },
+        addSampleData() {
+          const sampleArticles = [
+            {
+              id: Date.now() + 1,
+              username: 'SampleUser1',
+              tags: ['sample', 'test'],
+              content: 'これはサンプル記事です。',
+              email: 'sample1@example.com',
+              createdAt: new Date().toISOString(),
+              likes: 0,
+              bookmarked: false
+            },
+            {
+              id: Date.now() + 2,
+              username: 'SampleUser2',
+              tags: ['example', 'demo'],
+              content: 'こちらはデモ記事です。',
+              email: 'sample2@example.com',
+              createdAt: new Date().toISOString(),
+              likes: 1,
+              bookmarked: true
+            }
+          ];
+
+          this.articles.push(...sampleArticles);
+        },
+        confirmDelete(article) {
+          if (confirm('本当にこの記事を削除しますか？')) {
+            this.deleteArticle(article);
+          }
+        },
+        deleteArticle(article) {
+          this.articles = this.articles.filter(a => a.id !== article.id);
+        },
+        sortArticles(direction) {
+          this.sortDirection = direction;
+        },
+        async callEndpoint(endpoint, method = 'POST', data = {}) {
+          try {
+            const response = await fetch(`${this.endpoint}${endpoint}`, {
+              method,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(data),
+            });
+            const result = await response.json();
+            console.log(result);
+            return result;
+          } catch (error) {
+            console.error('Error:', error);
+          }
+        },
+        async initDatabase() {
+          await this.callEndpoint('/app8/app8_init');
+        },
+        async insertSampleData() {
+          await this.callEndpoint('/app8/app8_insert_sample');
+        },
+        async readAllData() {
+          const data = await this.callEndpoint('/app8/app8_read_all', 'GET');
+          console.log(data);
+        },
+        async createMail(mailData) {
+          await this.callEndpoint('/app8/mails/create', 'POST', mailData);
+        },
+        async updateMail(mailData) {
+          await this.callEndpoint('/app8/mails/update', 'POST', mailData);
+        },
+        async deleteMail(mailData) {
+          await this.callEndpoint('/app8/mails/delete', 'POST', mailData);
+        },
+        async createLike(likeData) {
+          await this.callEndpoint('/app8/likes/create', 'POST', likeData);
+        },
+        async deleteLike(likeData) {
+          await this.callEndpoint('/app8/likes/delete', 'POST', likeData);
+        },
+        async createBookmark(bookmarkData) {
+          await this.callEndpoint('/app8/bookmarks/create', 'POST', bookmarkData);
+        },
+        async deleteBookmark(bookmarkData) {
+          await this.callEndpoint('/app8/bookmarks/delete', 'POST', bookmarkData);
+        },
+        async createTag(tagData) {
+          await this.callEndpoint('/app8/tags/create', 'POST', tagData);
+        },
+        async deleteTag(tagData) {
+          await this.callEndpoint('/app8/tags/delete', 'POST', tagData);
+        },
+      },
+      mounted() {
+        // Simulate auto-login
+        this.login();
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
