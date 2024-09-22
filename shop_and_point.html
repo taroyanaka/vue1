@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue 3 API Interaction</title>
+  <script src="https://unpkg.com/vue@next"></script>
+</head>
+<body>
+
+  <div id="app">
+    <!-- Input fields for API interactions -->
+    <div>
+      <h3>Initialize Database</h3>
+      <button @click="initDB">Initialize</button>
+    </div>
+
+    <div>
+      <h3>Insert Sample Data</h3>
+      <button @click="insertSampleData">Insert Sample Data</button>
+    </div>
+
+    <div>
+      <h3>Read All Data</h3>
+      <button @click="readAllData">Read All</button>
+    </div>
+
+    <div>
+      <h3>Create Shop</h3>
+      <input type="text" v-model="shop_name" placeholder="Shop Name" />
+      <button @click="createShop">Create Shop</button>
+    </div>
+
+    <div>
+      <h3>Create User</h3>
+      <input type="text" v-model="uid" placeholder="User ID" />
+      <button @click="createUser">Create User</button>
+    </div>
+
+    <div>
+      <h3>Create Shop-User Relation</h3>
+      <input type="text" v-model="shop_id" placeholder="Shop ID" />
+      <input type="text" v-model="uid" placeholder="User ID" />
+      <button @click="createShopUser">Create Shop-User</button>
+    </div>
+
+    <div>
+      <h3>Create Points</h3>
+      <input type="text" v-model="shop_id" placeholder="Shop ID" />
+      <input type="text" v-model="uid" placeholder="User ID" />
+      <input type="number" v-model="point" placeholder="Points" />
+      <button @click="createPoints">Create Points</button>
+    </div>
+
+    <div>
+      <h3>Upsert Points</h3>
+      <input type="text" v-model="shop_id" placeholder="Shop ID" />
+      <input type="text" v-model="uid" placeholder="User ID" />
+      <input type="number" v-model="point" placeholder="Points" />
+      <button @click="upsertPoints">Upsert Points</button>
+    </div>
+
+    <!-- Display fetched data -->
+    <div v-if="dataFetched">
+      <h3>Fetched Data</h3>
+      <pre>{{ dataFetched }}</pre>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          shop_name: '',
+          uid: '',
+          shop_id: '',
+          point: '',
+          dataFetched: null
+        };
+      },
+      methods: {
+        // API call to initialize the database
+        async initDB() {
+          try {
+            const response = await fetch('http://localhost:8000/api/init', {
+              method: 'POST',
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to insert sample data
+        async insertSampleData() {
+          try {
+            const response = await fetch('http://localhost:8000/api/all_sample_insert', {
+              method: 'POST',
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to read all data
+        async readAllData() {
+          try {
+            const response = await fetch('http://localhost:8000/api/read_all');
+            const data = await response.json();
+            this.dataFetched = data;
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to create a shop
+        async createShop() {
+          try {
+            const response = await fetch('http://localhost:8000/api/shops_create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shop_name: this.shop_name })
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to create a user
+        async createUser() {
+          try {
+            const response = await fetch('http://localhost:8000/api/users_create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uid: this.uid })
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to create a shop-user relation
+        async createShopUser() {
+          try {
+            const response = await fetch('http://localhost:8000/api/shops_users_create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shop_id: this.shop_id, uid: this.uid })
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to create points
+        async createPoints() {
+          try {
+            const response = await fetch('http://localhost:8000/api/points_create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shop_id: this.shop_id, uid: this.uid, point: this.point })
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        },
+
+        // API call to upsert points
+        async upsertPoints() {
+          try {
+            const response = await fetch('http://localhost:8000/api/points_upsert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shop_id: this.shop_id, uid: this.uid, point: this.point })
+            });
+            const result = await response.text();
+            alert(result);
+          } catch (error) {
+            console.error(error);
+          }
+        }
+      }
+    }).mount('#app');
+  </script>
+
+</body>
+</html>
