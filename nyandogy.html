@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nyandogy Evolution with Poop</title>
+
+  <!-- Vue 3.2.33 Production バージョンを読み込み -->
+  <script src="https://unpkg.com/vue@3.2.33/dist/vue.global.prod.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #fafafa;
+    }
+    #app {
+      text-align: center;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .character {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+    .status {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+    .poop {
+      display: flex;
+      justify-content: center;
+      font-size: 24px;
+      margin-top: 10px;
+    }
+    button {
+      margin: 5px;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      background-color: #76c7c0;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const app = Vue.createApp({
+      data() {
+        return {
+          creatures: [
+            { name: 'にゃんどぎ', emoji: '🐱', fullnessRate: -5, happinessRate: -5, evolutionDifficulty: { fullness: 60, happiness: 60, poopLimit: 5 } },
+            { name: 'ワンどぎ', emoji: '🐶', fullnessRate: -6, happinessRate: -4, evolutionDifficulty: { fullness: 70, happiness: 70, poopLimit: 4 } },
+            { name: 'ウサどぎ', emoji: '🐰', fullnessRate: -4, happinessRate: -6, evolutionDifficulty: { fullness: 80, happiness: 80, poopLimit: 3 } },
+            { name: 'ピヨどぎ', emoji: '🐥', fullnessRate: -3, happinessRate: -7, evolutionDifficulty: { fullness: 85, happiness: 85, poopLimit: 3 } },
+            { name: 'コアどぎ', emoji: '🐨', fullnessRate: -8, happinessRate: -3, evolutionDifficulty: { fullness: 90, happiness: 90, poopLimit: 2 } },
+            { name: 'ペンどぎ', emoji: '🐧', fullnessRate: -7, happinessRate: -5, evolutionDifficulty: { fullness: 95, happiness: 95, poopLimit: 2 } },
+            { name: 'ゾウどぎ', emoji: '🐘', fullnessRate: -5, happinessRate: -6, evolutionDifficulty: { fullness: 100, happiness: 100, poopLimit: 1 } },
+            { name: 'カエどぎ', emoji: '🐸', fullnessRate: -6, happinessRate: -5, evolutionDifficulty: { fullness: 100, happiness: 100, poopLimit: 1 } },
+            { name: 'リスどぎ', emoji: '🐿️', fullnessRate: -4, happinessRate: -7, evolutionDifficulty: { fullness: 100, happiness: 100, poopLimit: 1 } },
+            { name: 'パンダどぎ', emoji: '🐼', fullnessRate: -7, happinessRate: -4, evolutionDifficulty: { fullness: 100, happiness: 100, poopLimit: 1 } }
+          ],
+          currentCreatureIndex: 0,
+          fullness: 50,
+          happiness: 50,
+          poopCount: 0,
+          poops: [],
+          isAlive: true,
+          intervalId: null,
+          poopIntervalId: null,
+          evolutionThreshold: 10,
+          evolutionTimer: 0,
+          timeInterval: 3000 // 3秒間隔
+        };
+      },
+      computed: {
+        currentCreature() {
+          return this.creatures[this.currentCreatureIndex];
+        },
+        fullnessStatus() {
+          return `満腹度: ${this.fullness}`;
+        },
+        happinessStatus() {
+          return `機嫌度: ${this.happiness}`;
+        },
+        poopStatus() {
+          return `💩の数: ${this.poopCount}`;
+        }
+      },
+      methods: {
+        feed() {
+          if (this.isAlive && this.fullness < 100) {
+            this.fullness += 10;
+          }
+        },
+        play() {
+          if (this.isAlive && this.happiness < 100) {
+            this.happiness += 10;
+          }
+        },
+        cleanPoop() {
+          this.poops = [];
+          this.poopCount = 0;
+        },
+        decreaseStatus() {
+          if (this.isAlive) {
+            this.fullness = Math.max(0, this.fullness + this.currentCreature.fullnessRate);
+            this.happiness = Math.max(0, this.happiness + this.currentCreature.happinessRate);
+            this.checkIfAlive();
+            this.evolutionTimer += this.timeInterval / 1000;
+            this.checkEvolution();
+          }
+        },
+        addPoop() {
+          if (this.isAlive) {
+            this.poops.push('💩');
+            this.poopCount++;
+            if (this.poopCount >= 10) {
+              this.isAlive = false;
+              clearInterval(this.intervalId);
+              clearInterval(this.poopIntervalId);
+              alert('💩が10個になり、死亡しました…');
+            }
+          }
+        },
+        checkIfAlive() {
+          if (this.fullness === 0 || this.happiness === 0) {
+            this.isAlive = false;
+            clearInterval(this.intervalId);
+            clearInterval(this.poopIntervalId);
+            alert(`${this.currentCreature.name}が死んでしまいました…`);
+          }
+        },
+        checkEvolution() {
+          const { fullness, happiness, poopLimit } = this.currentCreature.evolutionDifficulty;
+          if (
+            this.evolutionTimer >= this.evolutionThreshold &&
+            this.fullness >= fullness &&
+            this.happiness >= happiness &&
+            this.poopCount <= poopLimit
+          ) {
+            this.evolveCreature();
+            this.evolutionTimer = 0;
+          }
+        },
+        evolveCreature() {
+          if (this.currentCreatureIndex < this.creatures.length - 1) {
+            this.currentCreatureIndex += 1;
+            alert(`${this.currentCreature.name}に進化しました！`);
+          } else {
+            alert('全ての進化が完了しました！');
+          }
+        },
+        startGame() {
+          this.intervalId = setInterval(this.decreaseStatus, this.timeInterval);
+          this.poopIntervalId = setInterval(this.addPoop, 2000); // 💩は2秒ごとに増える
+        },
+        resetGame() {
+          this.fullness = 50;
+          this.happiness = 50;
+          this.poopCount = 0;
+          this.poops = [];
+          this.isAlive = true;
+          this.currentCreatureIndex = 0;
+          this.evolutionTimer = 0;
+          this.startGame();
+        }
+      },
+      mounted() {
+        this.startGame();
+      },
+      template: `
+        <div>
+          <div class="character">{{ currentCreature.emoji }}</div>
+          <div>{{ currentCreature.name }}</div>
+          <div class="status">{{ fullnessStatus }}</div>
+          <div class="status">{{ happinessStatus }}</div>
+          <div class="status">{{ poopStatus }}</div>
+          <div class="poop">
+            <span v-for="(poop, index) in poops" :key="index">{{ poop }}</span>
+          </div>
+          <button @click="feed" :disabled="!isAlive">ごはんをあげる</button>
+          <button @click="play" :disabled="!isAlive">遊ぶ</button>
+          <button @click="cleanPoop" :disabled="!isAlive">トイレ掃除</button>
+          <button @click="resetGame">リセット</button>
+        </div>
+      `
+    });
+
+    app.mount('#app');
+  </script>
+</body>
+</html>

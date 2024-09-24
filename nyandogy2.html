@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クリーチャー管理</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.37/dist/vue.global.js"></script>
+    <style>
+        .creature { margin: 20px; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>クリーチャー管理</h1>
+        <div v-for="creature in creatures" :key="creature.name" class="creature">
+            <h2>{{ creature.emoji }} {{ creature.name }}</h2>
+            <p>満腹度: {{ creature.fu }}</p>
+            <p>幸せ度: {{ creature.ha }}</p>
+            <p>💩: {{ creature.poop }}</p>
+            <p>残り時間: {{ creature.rem }}</p>
+            <p>メッセージ: {{ creature.message }}</p>
+            <button @click="feed(creature)">餌をあげる</button>
+            <button @click="play(creature)">遊ぶ</button>
+            <button @click="toilet(creature)">トイレ</button>
+            <button @click="evolve(creature)">進化</button>
+        </div>
+        <h3>総💩数: {{ totalPoopCount }}</h3>
+    </div>
+
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    creatures: [
+                        { name: 'イカどぎ', emoji: '🐙', fu: 50, ha: 50, alive: true, poop: 0, type: 0, maxPoop: 10, ev: { fu: 70, ha: 70, poop: 10, newName: 'イカ大王', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
+                        { name: 'クジラどぎ', emoji: '🐋', fu: 50, ha: 50, alive: true, poop: 0, type: 1, maxPoop: 15, ev: { fu: 80, ha: 80, poop: 15, newName: 'クジラ帝王', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
+                        { name: 'ウミウシどぎ', emoji: '🐌', fu: 50, ha: 50, alive: true, poop: 0, type: 2, maxPoop: 20, ev: { fu: 90, ha: 90, poop: 20, newName: 'ウミウシ皇帝', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
+                        { name: '未知のクリーチャー', emoji: '🦄', fu: 50, ha: 50, alive: true, poop: 0, type: 3, maxPoop: 30, ev: { fu: 100, ha: 100, poop: 30, newName: '神', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
+                    ],
+                    settings: { fd: 1, hd: 1, tm: 1 },
+                    timer: null
+                };
+            },
+            computed: {
+                totalPoopCount() {
+                    return this.creatures ? this.creatures.reduce((total, c) => total + c.poop, 0) : 0;
+                }
+            },
+            methods: {
+                feed(c) { if (!c.alive) return; c.fu = Math.min(c.fu + 10, 100); this.checkAlive(c); },
+                play(c) { if (!c.alive) return; c.ha = Math.min(c.ha + 10, 100); this.checkAlive(c); },
+                toilet(c) { if (!c.alive) return; c.poop = 0; this.checkAlive(c); }, // 💩を0にリセット
+                evolve(c) {
+                    const { fu, ha, poop, newName, newEmoji } = c.ev;
+                    if (c.fu > 0 && c.poop < c.maxPoop && c.fu >= fu && c.ha >= ha) {
+                        c.message = `${c.name}が進化した！`;
+                        c.name = newName;
+                        c.emoji = newEmoji;
+                        c.type += 1; // 進化タイプを増やす
+                        c.maxPoop -= 5; // 進化ごとに💩の上限を減少
+                    } else {
+                        c.message = `${c.name}は進化できません。条件を満たしていません。`;
+                    }
+                },
+                checkAlive(c) {
+                    if (c.fu <= 0 || c.poop >= c.maxPoop) {
+                        c.alive = false;
+                        c.message = `${c.name}は亡くなりました。`;
+                    } else {
+                        c.message = '';
+                    }
+                },
+                startTimer() {
+                    this.timer = setInterval(() => {
+                        this.creatures.forEach(c => {
+                            if (c.alive) {
+                                // 時間経過で満腹度と幸せ度を減少
+                                c.fu = Math.max(c.fu - this.settings.fd, 0);
+                                c.ha = Math.max(c.ha - this.settings.hd, 0);
+                                c.rem -= this.settings.tm;
+
+                                // 💩を増加
+                                c.poop += 1; // 1秒ごとに💩を1つ増やす
+                                this.checkAlive(c); // 生存チェック
+
+                                if (c.rem <= 0) {
+                                    this.evolve(c); // 進化チェック
+                                    c.rem = 10; // 残り時間をリセット
+                                }
+                                c.pb = (c.rem / 10) * 100;
+                            }
+                        });
+                    }, 1000);
+                },
+                stopTimer() { clearInterval(this.timer); this.timer = null; }
+            },
+            mounted() {
+                this.startTimer(); // アプリ起動時にタイマーを開始
+            },
+            beforeUnmount() {
+                this.stopTimer(); // アプリ終了時にタイマーを停止
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>
