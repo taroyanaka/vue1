@@ -6,39 +6,106 @@
     <title>クリーチャー管理</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.2.37/dist/vue.global.js"></script>
     <style>
-        .creature { margin: 20px; padding: 10px; border: 1px solid #ccc; }
+        .creature { margin: 0px; padding: 0px; border: 1px solid #ccc; }
+        .message-container {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            text-align: center;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body>
     <div id="app">
-        <h1>クリーチャー管理</h1>
-        <div v-for="creature in creatures" :key="creature.name" class="creature">
-            <h2>{{ creature.emoji }} {{ creature.name }}</h2>
-            <p>満腹度: {{ creature.fu }}</p>
-            <p>幸せ度: {{ creature.ha }}</p>
-            <p>💩: {{ creature.poop }}</p>
-            <p>残り時間: {{ creature.rem }}</p>
-            <p>メッセージ: {{ creature.message }}</p>
-            <button @click="feed(creature)">餌をあげる</button>
-            <button @click="play(creature)">遊ぶ</button>
-            <button @click="toilet(creature)">トイレ</button>
-            <button @click="evolve(creature)">進化</button>
+        <div class="message-container">
+            <div v-for="creature in creatures" :key="creature.id">{{ creature.message }}</div>
         </div>
-        <h3>総💩数: {{ totalPoopCount }}</h3>
+        <h3>💰: {{ mny }} mny  🪦: {{ deathCount }} ⏱️: {{ totalInterval }}</h3>
+        
+        <div v-for="creature in creatures" :key="creature.id" class="creature">
+            🍴<span @click="feed(creature)">{{ creature.fu }} / {{ creature.ev[creature.type]?.fu || 100 }}
+                <progress :value="creature.fu" max="100">{{ creature.fu }}%</progress>
+            </span>
+            🛝<span @click="play(creature)">{{ creature.ha }} / {{ creature.ev[creature.type]?.ha || 100 }}
+                <progress :value="creature.ha" max="100">{{ creature.ha }}%</progress>
+            </span>
+            💩<span @click="toilet(creature)">{{ creature.poop }} / {{ creature.maxPoop }}
+                <progress :value="creature.poop" :max="creature.maxPoop">{{ creature.poop }}/{{ creature.maxPoop }}</progress>
+            </span>
+            <span v-if="creature.type < creature.ev.length">💩{{ creature.ev[creature.type].poop }}</span>
+
+            ⏱️<progress :value="creature.pb" max="100">{{ creature.rem }}</progress>
+            {{ creature.emoji }} {{ creature.name }}: 💰{{ creature.gld }} gld
+            <!-- 売却 -->
+            <button @click="sellCreature(creature)">売却</button>
+        </div>
+
+        <h2>クリーチャー購入</h2>
+        <div v-for="template in creatureTemplates" :key="template.id" class="creature">
+            <h4>{{ template.emoji }} {{ template.name }}: 💰{{ template.gld }} gld</h4>
+            <button @click="buyCreature(template)">購入 ({{ discountPrice(template.price) }} mny)</button>
+        </div>
+
+        <h2>進化条件一覧</h2>
+        <div v-for="template in creatureTemplates" :key="template.id" class="creature">
+            <h4>{{ template.emoji }} {{ template.name }}: 💰{{ template.gld }} gld</h4>
+            <ul>
+                <li v-for="ev in template.ev" :key="ev.newName">
+                    {{ ev.newName }}: 🍴{{ ev.fu }} 🛝{{ ev.ha }} 💩{{ ev.poop }}
+                </li>
+            </ul>
+        </div>
+
+        <h2>設定</h2>
+        <div>
+            <label>満腹度減少間隔: <input type="number" v-model.number="settings.fd" min="1"></label>
+            <label>幸せ度減少間隔: <input type="number" v-model.number="settings.hd" min="1"></label>
+            <label>進化間隔: <input type="number" v-model.number="settings.tm" min="1"></label>
+        </div>
+
     </div>
 
     <script>
         const app = Vue.createApp({
             data() {
                 return {
-                    creatures: [
-                        { name: 'イカどぎ', emoji: '🐙', fu: 50, ha: 50, alive: true, poop: 0, type: 0, maxPoop: 10, ev: { fu: 70, ha: 70, poop: 10, newName: 'イカ大王', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
-                        { name: 'クジラどぎ', emoji: '🐋', fu: 50, ha: 50, alive: true, poop: 0, type: 1, maxPoop: 15, ev: { fu: 80, ha: 80, poop: 15, newName: 'クジラ帝王', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
-                        { name: 'ウミウシどぎ', emoji: '🐌', fu: 50, ha: 50, alive: true, poop: 0, type: 2, maxPoop: 20, ev: { fu: 90, ha: 90, poop: 20, newName: 'ウミウシ皇帝', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
-                        { name: '未知のクリーチャー', emoji: '🦄', fu: 50, ha: 50, alive: true, poop: 0, type: 3, maxPoop: 30, ev: { fu: 100, ha: 100, poop: 30, newName: '神', newEmoji: '👑' }, rem: 10, pb: 100, message: '' },
+                    totalInterval: 0,
+                    deathCount: 0,
+                    creatures: [],
+                    creatureTemplates: [
+                        { id: 1, name: 'ネズミー', emoji: '🐭', fu: 50, ha: 50, alive: true, poop: 0, type: 0, maxPoop: 30, gld: 5, price: 100, ev: [
+                            { fu: 17.5, ha: 17.5, poop: 4, newName: 'ネズミ王', newEmoji: '🐭👑', newGld: 10, maxPoop: 28 },
+                            { fu: 35, ha: 35, poop: 8, newName: 'ネズミ大王', newEmoji: '🐭👑👑', newGld: 20, maxPoop: 26 },
+                            { fu: 52.5, ha: 52.5, poop: 12, newName: 'ネズミ皇帝', newEmoji: '🐭👑👑👑', newGld: 30, maxPoop: 24 },
+                            { fu: 70, ha: 70, poop: 16, newName: 'ネズミ神', newEmoji: '🐭😇', newGld: 40, maxPoop: 22 }
+                        ], rem: 10, pb: 100, message: '' },
+                        { id: 2, name: 'ネコー', emoji: '🐱', fu: 50, ha: 50, alive: true, poop: 0, type: 0, maxPoop: 45, gld: 7, price: 1000, ev: [
+                            { fu: 20, ha: 20, poop: 6, newName: 'ネコ王', newEmoji: '🐱👑', newGld: 14, maxPoop: 42 },
+                            { fu: 40, ha: 40, poop: 12, newName: 'ネコ大王', newEmoji: '🐱👑👑', newGld: 28, maxPoop: 39 },
+                            { fu: 60, ha: 60, poop: 18, newName: 'ネコ皇帝', newEmoji: '🐱👑👑👑', newGld: 42, maxPoop: 36 },
+                            { fu: 80, ha: 80, poop: 24, newName: 'ネコ神', newEmoji: '🐱😇', newGld: 56, maxPoop: 33 }
+                        ], rem: 10, pb: 100, message: '' },
+                        { id: 3, name: 'イヌー', emoji: '🐶', fu: 50, ha: 50, alive: true, poop: 0, type: 0, maxPoop: 60, gld: 9, price: 10000, ev: [
+                            { fu: 22.5, ha: 22.5, poop: 8, newName: 'イヌ王', newEmoji: '🐶👑', newGld: 18, maxPoop: 56 },
+                            { fu: 45, ha: 45, poop: 16, newName: 'イヌ大王', newEmoji: '🐶👑👑', newGld: 36, maxPoop: 52 },
+                            { fu: 67.5, ha: 67.5, poop: 24, newName: 'イヌ皇帝', newEmoji: '🐶👑👑👑', newGld: 54, maxPoop: 48 },
+                            { fu: 85, ha: 85, poop: 32, newName: 'イヌ神', newEmoji: '🐶😇', newGld: 72, maxPoop: 44 }
+                        ], rem: 10, pb: 100, message: '' },
+                        { id: 4, name: '未知のクリーチャー', emoji: '🦄', fu: 50, ha: 50, alive: true, poop: 0, type: 0, maxPoop: 90, gld: 12, price: 100000, ev: [
+                            { fu: 25, ha: 25, poop: 12, newName: '王', newEmoji: '🐒', newGld: 24, maxPoop: 85 },
+                            { fu: 50, ha: 50, poop: 24, newName: '大王', newEmoji: '🚶', newGld: 48, maxPoop: 80 },
+                            { fu: 75, ha: 75, poop: 36, newName: '皇帝', newEmoji: '🕺', newGld: 72, maxPoop: 75 },
+                            { fu: 90, ha: 90, poop: 48, newName: '神', newEmoji: '😇', newGld: 96, maxPoop: 70 }
+                        ], rem: 10, pb: 100, message: '' },
                     ],
                     settings: { fd: 1, hd: 1, tm: 1 },
-                    timer: null
+
+                    timer: null,
+                    mny: 500 // プレイヤーのマネー
                 };
             },
             computed: {
@@ -51,24 +118,51 @@
                 play(c) { if (!c.alive) return; c.ha = Math.min(c.ha + 10, 100); this.checkAlive(c); },
                 toilet(c) { if (!c.alive) return; c.poop = 0; this.checkAlive(c); }, // 💩を0にリセット
                 evolve(c) {
-                    const { fu, ha, poop, newName, newEmoji } = c.ev;
-                    if (c.fu > 0 && c.poop < c.maxPoop && c.fu >= fu && c.ha >= ha) {
+                    // 次のステージが無い場合は進化せずに終了
+                    if (c.type >= c.ev.length) {
+                        return;
+                    }
+
+                    const evolutionStage = c.ev[c.type];
+                    if (evolutionStage && c.fu >= evolutionStage.fu && c.ha >= evolutionStage.ha && c.poop <= evolutionStage.poop) {
                         c.message = `${c.name}が進化した！`;
-                        c.name = newName;
-                        c.emoji = newEmoji;
+                        c.name = evolutionStage.newName;
+                        c.emoji = evolutionStage.newEmoji;
+                        c.gld = evolutionStage.newGld; // 進化後のgldを設定
+                        c.maxPoop = evolutionStage.maxPoop; // 進化後のmaxPoopを設定
                         c.type += 1; // 進化タイプを増やす
-                        c.maxPoop -= 5; // 進化ごとに💩の上限を減少
                     } else {
                         c.message = `${c.name}は進化できません。条件を満たしていません。`;
                     }
                 },
                 checkAlive(c) {
-                    if (c.fu <= 0 || c.poop >= c.maxPoop) {
+                    if (c.fu <= 0 || c.ha <= 0 || c.poop >= c.maxPoop) {
                         c.alive = false;
                         c.message = `${c.name}は亡くなりました。`;
+                        this.deathCount += 1;
+                        this.creatures = this.creatures.filter(creature => creature.id !== c.id); // クリーチャーを一覧から削除
                     } else {
                         c.message = '';
                     }
+                },
+                buyCreature(template) {
+                    if (this.mny >= template.price) {
+                        this.mny -= this.discountPrice(template.price); // 購入価格を支払う
+                        const newCreature = { ...template, id: Date.now() }; // 新しいクリーチャーを作成
+                        this.creatures.push(newCreature);
+                    } else {
+                        // alert('マネーが足りません');
+                    }
+                },
+                // 飼育中のクリーチャーの数*1%の購入価格の割引の機能を導入して
+                discountPrice(price) {
+                    const discount = Math.floor(this.creatures.length * 0.01 * price);
+                    return price - discount;
+                },
+                sellCreature(creature) {
+                    const sellPrice = creature.price / 2; // 売却価格は購入価格の半分
+                    this.mny += sellPrice;
+                    this.creatures = this.creatures.filter(c => c.id !== creature.id); // クリーチャーを一覧から削除
                 },
                 startTimer() {
                     this.timer = setInterval(() => {
@@ -88,7 +182,11 @@
                                     c.rem = 10; // 残り時間をリセット
                                 }
                                 c.pb = (c.rem / 10) * 100;
+
+                                // プレイヤーのマネーを増加
+                                this.mny += c.gld;
                             }
+                            this.totalInterval += 1;
                         });
                     }, 1000);
                 },
@@ -100,9 +198,7 @@
             beforeUnmount() {
                 this.stopTimer(); // アプリ終了時にタイマーを停止
             }
-        });
-
-        app.mount('#app');
+        }).mount('#app');
     </script>
 </body>
 </html>
