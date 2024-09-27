@@ -94,7 +94,6 @@ mny -> money
         },
         async mounted() {
             this.crtTemplates = crtTemplates;
-            this.startTimer();
         },
         computed: {
             totalppCount() {
@@ -153,7 +152,10 @@ mny -> money
         },
         beforeUnmount() {
             this.stopTimer();
-        }
+        },
+        afterMount() {
+            this.stopTimer();
+        },
     }).mount('#app');
 </script>
 
