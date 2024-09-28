@@ -119,7 +119,16 @@ cnd -> condition
     </div>
 
 <script>
-//         prizeには以下の種類がある
+// prizeの概念を導入する
+// mny
+// maxCage
+// cageCost
+// deathCount
+// crtsの数
+// 進化したcrtsの数
+// と、それらの組み合わせでの条件を満たすとprizeをランダムで1つ得られる
+
+// prizeには以下の種類がある
 // 得られるgldがn倍になる(2倍、3倍、5倍、10倍)(一定のtimeの間(3,5,10)) => 4*3=12
 // cageCostが減る(1,10,100,1000,10000(1を下回らない)) => 5
 // mnyが増える(1,10,100,1000,10000) => 5
@@ -139,7 +148,33 @@ cnd -> condition
 // 一定のtimeの間(3,5,10)毎回、crtsの全てのクリーチャーのhaが100%になる => 3
 // 一定のtimeの間(3,5,10)毎回、crtsの全てのクリーチャーのfuとhaが100%になる => 3
 // deathCountが減る(1,2, 3, 5, 10) => 5
+
+
 // 合計で12+5+5+1+1+1+1+1+1+1+3*4+3+3+3+3+3+3+3+3+3+5=70
+
+
+// prizeの取得条件は以下の通り
+// mnyが1000以上の時, mnyが3000以上の時, mnyが10000以上の時, mnyが30000以上の時, mnyが100000以上の時, mnyが300000以上の時
+// maxCageが1以上の時, maxCageが3以上の時, maxCageが5以上の時, maxCageが10以上の時, maxCageが20以上の時, maxCageが50以上の時
+// deathCountが1以上の時, deathCountが3以上の時, deathCountが5以上の時, deathCountが10以上の時, deathCountが20以上の時, deathCountが50以上の時
+// crtsの数が1以上の時, crtsの数が3以上の時, crtsの数が5以上の時, crtsの数が10以上の時, crtsの数が20以上の時, crtsの数が50以上の時
+
+// mnyが1000以上かつmaxCageが1以下の時, mnyが3000以上かつmaxCageが3以下の時, mnyが10000以上かつmaxCageが5以下の時, mnyが30000以上かつmaxCageが10以下の時, mnyが100000以上かつmaxCageが20以下の時, mnyが300000以上かつmaxCageが50以下の時
+// mnyが1000以上かつmaxCageが1以下の時, mnyが3000以上かつmaxCageが3以下の時, mnyが10000以上かつmaxCageが5以下の時, mnyが30000以上かつmaxCageが10以下の時, mnyが100000以上かつmaxCageが20以下の時, mnyが300000以上かつmaxCageが50以下の時
+// mnyが1000以上かつdeathCountが0の時、mnyが1000以上かつdeathCountが1以下の時, mnyが3000以上かつdeathCountが3以下の時, mnyが10000以上かつdeathCountが5以下の時, mnyが30000以上かつdeathCountが10以下の時, mnyが100000以上かつdeathCountが20以下の時, mnyが300000以上かつdeathCountが50以下の時
+
+// maxCageが1以上かつdeathCountが1以下の時, maxCageが3以上かつdeathCountが3以下の時, maxCageが5以上かつdeathCountが5以下の時, maxCageが10以上かつdeathCountが10以下の時, maxCageが20以上かつdeathCountが20以下の時, maxCageが50以上かつdeathCountが50以下の時
+// deathCountが1以上かつcrtsの数が1以下の時, deathCountが3以上かつcrtsの数が3以下の時, deathCountが5以上かつcrtsの数が5以下の時, deathCountが10以上かつcrtsの数が10以下の時, deathCountが20以上かつcrtsの数が20以下の時, deathCountが50以上かつcrtsの数が50以下の時
+// 条件の種類は以上の通りで、それぞれの条件を満たすとprizeをランダムで1つ得られる
+
+// 取得したprizeはmyPrizeに格納され、得たprizeはボタンを押すと実行されて、その効果が発動し、myPrizeから削除される。
+// myPrizeの実行はtimer停止中のみ。
+// prizeの効果は重複する(加算された結果に乗算される)。
+// prizeの計算は上限値を超えた場合、上限値になるように計算される。
+
+
+
+
 const prizes = [
 { type: 'gldMultiplier', value: 2, drt: 3, dsc: '得られるgldが2倍になる(3秒間)' },
 { type: 'gldMultiplier', value: 3, drt: 5, dsc: '得られるgldが3倍になる(5秒間)' },
