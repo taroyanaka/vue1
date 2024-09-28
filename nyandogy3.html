@@ -36,11 +36,16 @@ hd -> happinessDecrease
 pb -> progressBar
 rem -> remaining
 mny -> money
+cg -> cage
+dsc -> description
+cnd -> condition
 -->
 </head>
 <body>
     <div id="app">
         <div class="message-container">
+            <!-- this.messageを表示 -->
+            <div>{{ message }}</div>
             <div v-for="crt in crts" :key="crt.id">{{ crt.message }}</div>
         </div>
         <h3>💰: {{ mny }} mny  🪦: {{ deathCount }} ⏱️: {{ totalInterval }}</h3>
@@ -61,6 +66,29 @@ mny -> money
             {{ crt.emoji }} {{ crt.name }}: 💰{{ crt.gld }} gld
             <!-- 売却 -->
             <button @click="sellcrt(crt)">売却</button>
+            <!-- ケージに移動 -->
+            <button @click="moveToCage(crt)" v-if="!crt.inCage">ケージに移動</button>
+            <!-- ケージから移動 -->
+            <button @click="moveFromCage(crt)" v-if="crt.inCage">ケージから移動</button>
+        </div>
+
+        <h2>ケージ内のクリーチャー</h2>
+        <div v-for="crt in cg" :key="crt.id" class="crt">
+            🍴<span>{{ crt.fu }} / {{ crt.ev[crt.type]?.fu || 100 }}
+                <progress :value="crt.fu" max="100">{{ crt.fu }}%</progress>
+            </span>
+            🛝<span>{{ crt.ha }} / {{ crt.ev[crt.type]?.ha || 100 }}
+                <progress :value="crt.ha" max="100">{{ crt.ha }}%</progress>
+            </span>
+            💩<span>{{ crt.pp }} / {{ crt.mPp }}
+                <progress :value="crt.pp" :max="crt.mPp">{{ crt.pp }}/{{ crt.mPp }}</progress>
+            </span>
+            <span v-if="crt.type < crt.ev.length">💩{{ crt.ev[crt.type].pp }}</span>
+
+            ⏱️<progress :value="crt.pb" max="100">{{ crt.rem }}</progress>
+            {{ crt.emoji }} {{ crt.name }}: 💰{{ crt.gld }} gld
+            <!-- ケージから移動 -->
+            <button @click="moveFromCage(crt)">ケージから移動</button>
         </div>
 
         <h2>クリーチャー購入</h2>
@@ -69,6 +97,17 @@ mny -> money
             <button @click="buycrt(template)">購入 ({{ discountPrice(template.price) }} mny)</button>
         </div>
 
+        <h2>My Prizes</h2>
+        <div v-for="prize in myPrizes" :key="prize.id">
+            <span>{{ prize.dsc }}</span>
+            <button @click="usePrize(prize)">Use</button>
+        </div>
+
+        <h2>ケージ管理</h2>
+        <div>
+            <p>ケージの上限: {{ maxCage }}</p>
+            <button @click="buyCageSpace">ケージを購入 ({{ cageCost }} mny)</button>
+        </div>
 
         <h2>設定</h2>
         <div>
@@ -80,24 +119,148 @@ mny -> money
     </div>
 
 <script>
+
+
+    const prizes = [
+        { type: 'gldMultiplier', value: 2, drt: 3, dsc: '得られるgldが2倍になる(3秒間)' },
+        { type: 'gldMultiplier', value: 3, drt: 5, dsc: '得られるgldが3倍になる(5秒間)' },
+//         prizeには以下の種類がある
+// 得られるgldがn倍になる(2倍、3倍、5倍、10倍)(一定のtimeの間(3,5,10)) => 4*3=12
+// cageCostが減る(1,10,100,1000,10000(1を下回らない)) => 5
+// mnyが増える(1,10,100,1000,10000) => 5
+// cageの全てのクリーチャーのfuが100%になる(1回だけ) => 1
+// cageのランダムのクリーチャーのfuが100%になる(1回だけ) => 1
+// cageの全てのクリーチャーのhaが100%になる(1回だけ) => 1
+// cageのランダムのクリーチャーのhaが100%になる(1回だけ) => 1
+// crts内にランダムの種類のcrtsが1匹追加される(1回だけ) => 1
+// crts内にランダムに1匹のcrtsが進化する(1回だけ) => 1
+// cage内のcrtsがランダムに1匹進化する(1回だけ) => 1
+// cage内のcrtsが全て進化する(1回だけ) => 1
+// 一定のtimeの間(3,5,10)毎回、crtsの進化が速くなる(2倍、3倍、5倍、10倍) => 3*4=12
+// 一定のtimeの間(3,5,10)毎回、crtsの1匹のクリーチャーのfuが100%になる => 3
+// 一定のtimeの間(3,5,10)毎回、crtsの1匹のクリーチャーのhaが100%になる => 3
+// 一定のtimeの間(3,5,10)毎回、crtsの1匹のクリーチャーのfuとhaが100%になる => 3
+// 一定のtimeの間(3,5,10)毎回、crtsの全てのクリーチャーのfuが100%になる => 3
+// 一定のtimeの間(3,5,10)毎回、crtsの全てのクリーチャーのhaが100%になる => 3
+// 一定のtimeの間(3,5,10)毎回、crtsの全てのクリーチャーのfuとhaが100%になる => 3
+// deathCountが減る(1,2, 3, 5, 10) => 5
+
+
+// 合計で12+5+5+1+1+1+1+1+1+1+3*4+3+3+3+3+3+3+3+3+3+5=70
+{ type: 'gldMultiplier', value: 5, drt: 10, dsc: '得られるgldが5倍になる(10秒間)' },
+{ type: 'gldMultiplier', value: 10, drt: 10, dsc: '得られるgldが10倍になる(10秒間)' },
+{ type: 'cageCostReduction', value: 1, dsc: 'ケージのコストが1減る' },
+{ type: 'cageCostReduction', value: 10, dsc: 'ケージのコストが10減る' },
+{ type: 'cageCostReduction', value: 100, dsc: 'ケージのコストが100減る' },
+{ type: 'cageCostReduction', value: 1000, dsc: 'ケージのコストが1000減る' },
+{ type: 'cageCostReduction', value: 10000, dsc: 'ケージのコストが10000減る' },
+{ type: 'mnyIncrease', value: 1, dsc: 'マネーが1増える' },
+{ type: 'mnyIncrease', value: 10, dsc: 'マネーが10増える' },
+{ type: 'mnyIncrease', value: 100, dsc: 'マネーが100増える' },
+{ type: 'mnyIncrease', value: 1000, dsc: 'マネーが1000増える' },
+{ type: 'mnyIncrease', value: 10000, dsc: 'マネーが10000増える' },
+{ type: 'fullnessAll', dsc: 'ケージの全てのクリーチャーの満腹度が100%になる' },
+{ type: 'fullnessRandom', dsc: 'ケージのランダムのクリーチャーの満腹度が100%になる' },
+{ type: 'happinessAll', dsc: 'ケージの全てのクリーチャーの幸せ度が100%になる' },
+{ type: 'happinessRandom', dsc: 'ケージのランダムのクリーチャーの幸せ度が100%になる' },
+{ type: 'addRandomCrt', dsc: 'ランダムの種類のクリーチャーが1匹追加される' },
+{ type: 'evolveRandomCrt', dsc: 'ランダムに1匹のクリーチャーが進化する' },
+{ type: 'evolveRandomCrtInCage', dsc: 'ケージ内のランダムに1匹のクリーチャーが進化する' },
+{ type: 'evolveAllCrtInCage', dsc: 'ケージ内の全てのクリーチャーが進化する' },
+{ type: 'evolutionSpeedUp', value: 2, drt: 3, dsc: '進化が2倍速くなる(3秒間)' },
+{ type: 'evolutionSpeedUp', value: 3, drt: 5, dsc: '進化が3倍速くなる(5秒間)' },
+{ type: 'evolutionSpeedUp', value: 5, drt: 10, dsc: '進化が5倍速くなる(10秒間)' },
+{ type: 'evolutionSpeedUp', value: 10, drt: 10, dsc: '進化が10倍速くなる(10秒間)' },
+{ type: 'fullnessEveryInterval', value: 1, drt: 3, dsc: '毎回、1匹のクリーチャーの満腹度が100%になる(3秒間)' },
+{ type: 'happinessEveryInterval', value: 1, drt: 3, dsc: '毎回、1匹のクリーチャーの幸せ度が100%になる(3秒間)' },
+{ type: 'fullnessAndHappinessEveryInterval', value: 1, drt: 3, dsc: '毎回、1匹のクリーチャーの満腹度と幸せ度が100%になる(3秒間)' },
+{ type: 'fullnessAllEveryInterval', value: 1, drt: 3, dsc: '毎回、全てのクリーチャーの満腹度が100%になる(3秒間)' },
+{ type: 'happinessAllEveryInterval', value: 1, drt: 3, dsc: '毎回、全てのクリーチャーの幸せ度が100%になる(3秒間)' },
+{ type: 'fullnessAndHappinessAllEveryInterval', value: 1, drt: 3, dsc: '毎回、全てのクリーチャーの満腹度と幸せ度が100%になる(3秒間)' },
+{ type: 'deathCountReduction', value: 1, dsc: '死亡数が1減る' },
+{ type: 'deathCountReduction', value: 2, dsc: '死亡数が2減る' },
+{ type: 'deathCountReduction', value: 3, dsc: '死亡数が3減る' },
+{ type: 'deathCountReduction', value: 5, dsc: '死亡数が5減る' },
+{ type: 'deathCountReduction', value: 10, dsc: '死亡数が10減る' }
+
+    ];
+
     const app = Vue.createApp({
         data() {
             return {
+                message: '',
                 totalInterval: 0,
                 deathCount: 0,
+                cg: [],
                 crts: [],
                 crtTemplates: null,
                 settings: { fd: 1, hd: 1, tm: 1 },
                 timer: null,
-                mny: 500 // プレイヤーのマネー
-            };
+                mny: 500, // プレイヤーのマネー
+                maxCage: 1, // ケージの初期上限
+                cageCost: 1, // ケージの初期コスト
+                prizes: prizes,
+                myPrizes: [],
+
+                cnds: [
+        { cnd: () => this.mny >= 1000, met: false },
+        { cnd: () => this.mny >= 3000, met: false },
+        { cnd: () => this.mny >= 10000, met: false },
+        { cnd: () => this.mny >= 30000, met: false },
+        { cnd: () => this.mny >= 100000, met: false },
+        { cnd: () => this.mny >= 300000, met: false },
+        { cnd: () => this.maxCage >= 1, met: false },
+        { cnd: () => this.maxCage >= 3, met: false },
+        { cnd: () => this.maxCage >= 5, met: false },
+        { cnd: () => this.maxCage >= 10, met: false },
+        { cnd: () => this.maxCage >= 20, met: false },
+        { cnd: () => this.maxCage >= 50, met: false },
+        { cnd: () => this.deathCount >= 1, met: false },
+        { cnd: () => this.deathCount >= 3, met: false },
+        { cnd: () => this.deathCount >= 5, met: false },
+        { cnd: () => this.deathCount >= 10, met: false },
+        { cnd: () => this.deathCount >= 20, met: false },
+        { cnd: () => this.deathCount >= 50, met: false },
+        { cnd: () => this.crts.length >= 1, met: false },
+        { cnd: () => this.crts.length >= 3, met: false },
+        { cnd: () => this.crts.length >= 5, met: false },
+        { cnd: () => this.crts.length >= 10, met: false },
+        { cnd: () => this.crts.length >= 20, met: false },
+        { cnd: () => this.crts.length >= 50, met: false },
+        { cnd: () => this.mny >= 1000 && this.maxCage <= 1, met: false },
+        { cnd: () => this.mny >= 3000 && this.maxCage <= 3, met: false },
+        { cnd: () => this.mny >= 10000 && this.maxCage <= 5, met: false },
+        { cnd: () => this.mny >= 30000 && this.maxCage <= 10, met: false },
+        { cnd: () => this.mny >= 100000 && this.maxCage <= 20, met: false },
+        { cnd: () => this.mny >= 300000 && this.maxCage <= 50, met: false },
+        { cnd: () => this.mny >= 1000 && this.deathCount <= 0, met: false },
+        { cnd: () => this.mny >= 1000 && this.deathCount <= 1, met: false },
+        { cnd: () => this.mny >= 3000 && this.deathCount <= 3, met: false },
+        { cnd: () => this.mny >= 10000 && this.deathCount <= 5, met: false },
+        { cnd: () => this.mny >= 30000 && this.deathCount <= 10, met: false },
+        { cnd: () => this.mny >= 100000 && this.deathCount <= 20, met: false },
+        { cnd: () => this.mny >= 300000 && this.deathCount <= 50, met: false },
+        { cnd: () => this.maxCage >= 1 && this.deathCount <= 1, met: false },
+        { cnd: () => this.maxCage >= 3 && this.deathCount <= 3, met: false },
+        { cnd: () => this.maxCage >= 5 && this.deathCount <= 5, met: false },
+        { cnd: () => this.maxCage >= 10 && this.deathCount <= 10, met: false },
+        { cnd: () => this.maxCage >= 20 && this.deathCount <= 20, met: false },
+        { cnd: () => this.maxCage >= 50 && this.deathCount <= 50, met: false },
+        { cnd: () => this.deathCount >= 1 && this.crts.length <= 1, met: false },
+        { cnd: () => this.deathCount >= 3 && this.crts.length <= 3, met: false },
+        { cnd: () => this.deathCount >= 5 && this.crts.length <= 5, met: false },
+        { cnd: () => this.deathCount >= 10 && this.crts.length <= 10, met: false },
+        { cnd: () => this.deathCount >= 20 && this.crts.length <= 20, met: false },
+        { cnd: () => this.deathCount >= 50 && this.crts.length <= 50, met: false },
+    ],
+
+};
         },
         computed: {
             totalppCount() {
                 return this.crts.reduce((total, c) => total + c.pp, 0);
             }
         },
-        // crtsが1以上の場合、タイマーを開始、それ以外の場合は停止
         watch: {
             crts: {
                 handler() {
@@ -106,13 +269,12 @@ mny -> money
                 deep: true
             }
         },
-
         methods: {
             feed(c) { this.modifyStat(c, 'fu', 10); },
             play(c) { this.modifyStat(c, 'ha', 10); },
             toilet(c) { this.modifyStat(c, 'pp', -c.pp); },
             modifyStat(c, stat, value) {
-                if (!c.alive) return;
+                if (!c.alive || c.inCage) return;
                 c[stat] = Math.min(Math.max(c[stat] + value, 0), 100);
                 this.checkAlive(c);
             },
@@ -129,7 +291,10 @@ mny -> money
                     : c.message = '';
             },
             buycrt(template) {
-                this.mny >= template.price && (this.mny -= this.discountPrice(template.price), this.crts.push({ ...template, id: Date.now() }));
+                if (this.mny >= template.price && this.crts.length < this.maxCage) {
+                    this.mny -= this.discountPrice(template.price);
+                    this.crts.push({ ...template, id: Date.now(), inCage: false });
+                }
             },
             discountPrice(price) {
                 return price - Math.floor(this.crts.length * 0.01 * price);
@@ -138,10 +303,29 @@ mny -> money
                 this.mny += crt.price / 2;
                 this.crts = this.crts.filter(c => c.id !== crt.id);
             },
+            moveToCage(crt) {
+                if (this.cg.length < this.maxCage) {
+                    crt.inCage = true;
+                    this.cg.push(crt);
+                    this.crts = this.crts.filter(c => c.id !== crt.id);
+                }
+            },
+            moveFromCage(crt) {
+                crt.inCage = false;
+                this.crts.push(crt);
+                this.cg = this.cg.filter(c => c.id !== crt.id);
+            },
+            buyCageSpace() {
+                if (this.mny >= this.cageCost) {
+                    this.mny -= this.cageCost;
+                    this.maxCage++;
+                    this.cageCost *= 2;
+                }
+            },
             startTimer() {
                 this.timer = setInterval(() => {
                     this.crts.forEach(c => {
-                        if (c.alive) {
+                        if (c.alive && !c.inCage) {
                             this.modifyStat(c, 'fu', -this.settings.fd);
                             this.modifyStat(c, 'ha', -this.settings.hd);
                             c.rem -= this.settings.tm;
@@ -153,9 +337,232 @@ mny -> money
                         }
                     });
                     this.totalInterval++;
+                    this.checkPrizecnds();
                 }, 1000);
             },
-            stopTimer() { clearInterval(this.timer); this.timer = null; }
+            stopTimer() { clearInterval(this.timer); this.timer = null; },
+            checkPrizecnds() {
+                let checkPrize = false;
+                this.cnds.forEach(cond => {
+                    // condの条件が満たされたら、prizeをランダムに取得してmyPrizesに追加する
+                    if (cond.cnd() && cond.met === false && !checkPrize) {
+                        const prize = this.getRandomPrize();
+                        this.myPrizes.push(prize);
+                        cond.met = true;
+                        checkPrize = true;
+                        // 達成した条件と得たprizeをmessageに表示
+                        this.message = `${cond.cnd}を達成しました！${prize.dsc}を獲得しました！`;
+
+                    }
+                });
+                this.cnds = this.cnds.filter(cond => !cond.met);
+            },
+            getRandomPrize() {
+                const randomIndex = Math.floor(Math.random() * this.prizes.length);
+                return this.prizes[randomIndex];
+            },
+            usePrize(prize) {
+                // Implement the logic to apply the effect of the prize
+                switch (prize.type) {
+                    case 'gldMultiplier':
+                        this.applyGldMultiplier(prize.value, prize.drt);
+                        break;
+                    // ... other cases
+                    case 'cageCostReduction':
+                        this.applyCageCostReduction(prize.value);
+                        break;
+                    case 'mnyIncrease':
+                        this.applyMnyIncrease(prize.value);
+                        break;
+                    case 'fullnessAll':
+                        this.applyFullnessAll();
+                        break;
+                    case 'fullnessRandom':
+                        this.applyFullnessRandom();
+                        break;
+                    case 'happinessAll':
+                        this.applyHappinessAll();
+                        break;
+                    case 'happinessRandom':
+                        this.applyHappinessRandom();
+                        break;
+                    case 'addRandomCrt':
+                        this.applyAddRandomCrt();
+                        break;
+                    case 'evolveRandomCrt':
+                        this.applyEvolveRandomCrt();
+                        break;
+                    case 'evolveRandomCrtInCage':
+                        this.applyEvolveRandomCrtInCage();
+                        break;
+                    case 'evolveAllCrtInCage':
+                        this.applyEvolveAllCrtInCage();
+                        break;
+                    case 'evolutionSpeedUp':
+                        this.applyEvolutionSpeedUp(prize.value, prize.drt);
+                        break;
+                    case 'fullnessEveryInterval':
+                        this.applyFullnessEveryInterval(prize.value, prize.drt);
+                        break;
+                    case 'happinessEveryInterval':
+                        this.applyHappinessEveryInterval(prize.value, prize.drt);
+                        break;
+                    case 'fullnessAndHappinessEveryInterval':
+                        this.applyFullnessAndHappinessEveryInterval(prize.value, prize.drt);
+                        break;
+                    case 'fullnessAllEveryInterval':
+                        this.applyFullnessAllEveryInterval(prize.value, prize.drt);
+                        break;
+                    case 'happinessAllEveryInterval':
+                        this.applyHappinessAllEveryInterval(prize.value, prize.drt);
+                        break;
+                    case 'fullnessAndHappinessAllEveryInterval':
+                        this.applyFullnessAndHappinessAllEveryInterval(prize.value, prize.drt);
+                        break;
+                    case 'deathCountReduction':
+                        this.applyDeathCountReduction(prize.value);
+                        break;
+
+                }
+                this.myPrizes = this.myPrizes.filter(p => p !== prize);
+            },
+            
+    applyGldMultiplier(value, drt) {
+        const originalGld = this.mny;
+        this.mny *= value;
+        setTimeout(() => {
+            this.mny = originalGld;
+        }, drt * 1000);
+    },
+
+    // cageCostReduction: ケージのコストが減る
+    applyCageCostReduction(value) {
+        this.cageCost = Math.max(this.cageCost - value, 1);
+    },
+
+    // mnyIncrease: マネーが増える
+    applyMnyIncrease(value) {
+        this.mny += value;
+    },
+
+    // fullnessAll: ケージの全てのクリーチャーの満腹度が100%になる
+    applyFullnessAll() {
+        this.cg.forEach(crt => crt.fu = 100);
+    },
+
+    // fullnessRandom: ケージのランダムのクリーチャーの満腹度が100%になる
+    applyFullnessRandom() {
+        const randomCrt = this.cg[Math.floor(Math.random() * this.cg.length)];
+        if (randomCrt) randomCrt.fu = 100;
+    },
+
+    // happinessAll: ケージの全てのクリーチャーの幸せ度が100%になる
+    applyHappinessAll() {
+        this.cg.forEach(crt => crt.ha = 100);
+    },
+
+    // happinessRandom: ケージのランダムのクリーチャーの幸せ度が100%になる
+    applyHappinessRandom() {
+        const randomCrt = this.cg[Math.floor(Math.random() * this.cg.length)];
+        if (randomCrt) randomCrt.ha = 100;
+    },
+
+    // addRandomCrt: ランダムの種類のクリーチャーが1匹追加される
+    applyAddRandomCrt() {
+        const randomTemplate = this.crtTemplates[Math.floor(Math.random() * this.crtTemplates.length)];
+        if (randomTemplate) {
+            this.crts.push({ ...randomTemplate, id: Date.now(), inCage: false });
+        }
+    },
+
+    // evolveRandomCrt: ランダムに1匹のクリーチャーが進化する
+    applyEvolveRandomCrt() {
+        const randomCrt = this.crts[Math.floor(Math.random() * this.crts.length)];
+        if (randomCrt) this.evolve(randomCrt);
+    },
+
+    // evolveRandomCrtInCage: ケージ内のランダムに1匹のクリーチャーが進化する
+    applyEvolveRandomCrtInCage() {
+        const randomCrt = this.cg[Math.floor(Math.random() * this.cg.length)];
+        if (randomCrt) this.evolve(randomCrt);
+    },
+
+    // evolveAllCrtInCage: ケージ内の全てのクリーチャーが進化する
+    applyEvolveAllCrtInCage() {
+        this.cg.forEach(crt => this.evolve(crt));
+    },
+
+    // evolutionSpeedUp: 進化が速くなる
+    applyEvolutionSpeedUp(value, drt) {
+        const originalTm = this.settings.tm;
+        this.settings.tm /= value;
+        setTimeout(() => {
+            this.settings.tm = originalTm;
+        }, drt * 1000);
+    },
+
+    // fullnessEveryInterval: 毎回、1匹のクリーチャーの満腹度が100%になる
+    applyFullnessEveryInterval(value, drt) {
+        const interval = setInterval(() => {
+            const randomCrt = this.crts[Math.floor(Math.random() * this.crts.length)];
+            if (randomCrt) randomCrt.fu = 100;
+        }, 1000);
+        setTimeout(() => clearInterval(interval), drt * 1000);
+    },
+
+    // happinessEveryInterval: 毎回、1匹のクリーチャーの幸せ度が100%になる
+    applyHappinessEveryInterval(value, drt) {
+        const interval = setInterval(() => {
+            const randomCrt = this.crts[Math.floor(Math.random() * this.crts.length)];
+            if (randomCrt) randomCrt.ha = 100;
+        }, 1000);
+        setTimeout(() => clearInterval(interval), drt * 1000);
+    },
+
+    // fullnessAndHappinessEveryInterval: 毎回、1匹のクリーチャーの満腹度と幸せ度が100%になる
+    applyFullnessAndHappinessEveryInterval(value, drt) {
+        const interval = setInterval(() => {
+            const randomCrt = this.crts[Math.floor(Math.random() * this.crts.length)];
+            if (randomCrt) {
+                randomCrt.fu = 100;
+                randomCrt.ha = 100;
+            }
+        }, 1000);
+        setTimeout(() => clearInterval(interval), drt * 1000);
+    },
+
+    // fullnessAllEveryInterval: 毎回、全てのクリーチャーの満腹度が100%になる
+    applyFullnessAllEveryInterval(value, drt) {
+        const interval = setInterval(() => {
+            this.crts.forEach(crt => crt.fu = 100);
+        }, 1000);
+        setTimeout(() => clearInterval(interval), drt * 1000);
+    },
+
+    // happinessAllEveryInterval: 毎回、全てのクリーチャーの幸せ度が100%になる
+    applyHappinessAllEveryInterval(value, drt) {
+        const interval = setInterval(() => {
+            this.crts.forEach(crt => crt.ha = 100);
+        }, 1000);
+        setTimeout(() => clearInterval(interval), drt * 1000);
+    },
+
+    // fullnessAndHappinessAllEveryInterval: 毎回、全てのクリーチャーの満腹度と幸せ度が100%になる
+    applyFullnessAndHappinessAllEveryInterval(value, drt) {
+        const interval = setInterval(() => {
+            this.crts.forEach(crt => {
+                crt.fu = 100;
+                crt.ha = 100;
+            });
+        }, 1000);
+        setTimeout(() => clearInterval(interval), drt * 1000);
+    },
+
+    // deathCountReduction: 死亡数が減る
+    applyDeathCountReduction(value) {
+        this.deathCount = Math.max(this.deathCount - value, 0);
+    },
+
         },
         mounted() {
             this.crtTemplates = crtTemplates;
