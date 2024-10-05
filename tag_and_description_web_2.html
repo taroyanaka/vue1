@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue Article Management</title>
+  <script src="https://unpkg.com/vue@next"></script>
+  <style>
+    .slide-out-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 300px;
+      height: 100%;
+      background-color: #f0f0f0;
+      border-left: 1px solid #ccc;
+      padding: 20px;
+      box-shadow: -3px 0 5px rgba(0, 0, 0, 0.1);
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+    .slide-out-panel[style*="display: block"] {
+      transform: translateX(0);
+    }
+    .article-item {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header>
+      <button @click="isPanelActive = !isPanelActive" class="panel-toggle-btn">
+        Create Article
+      </button>
+      <div v-if="loggedInUser">
+        <span>ログイン中</span>
+        <button @click="logout">ログアウト</button>
+      </div>
+      <div v-else>
+        <input v-model="loginUserId" placeholder="ユーザーIDを入力" />
+        <button @click="login">ログイン</button>
+      </div>
+    </header>
+
+    <!-- Slide-out panel for creating a new article -->
+    <div v-show="isPanelActive" class="slide-out-panel">
+      <h2>新規記事作成</h2>
+      <form @submit.prevent="createArticle">
+        <input v-model="newArticle.username" placeholder="ユーザー名" />
+        <input v-model="newArticle.email" placeholder="メールアドレス" />
+        <textarea v-model="newArticle.content" placeholder="記事内容"></textarea>
+        <input v-model="newTag" @keyup.enter="addTag" placeholder="タグを追加" />
+        <ul>
+          <li v-for="(tag, index) in newArticle.tags" :key="index">
+            {{ tag }} <button @click="removeTag(index)">削除</button>
+          </li>
+        </ul>
+        <button type="submit">投稿</button>
+      </form>
+    </div>
+
+    <!-- Article list and filters -->
+    <div class="filters">
+      <input v-model="filters.username" placeholder="ユーザー名でフィルター" />
+      <input v-model="newFilterTag" @keyup.enter="addFilterTag" placeholder="タグでフィルター" />
+      <ul>
+        <li v-for="(tag, index) in filters.tags" :key="index">
+          {{ tag }} <button @click="removeFilterTag(index)">削除</button>
+        </li>
+      </ul>
+      <label>
+        <input type="checkbox" v-model="filters.bookmarked" /> ブックマーク済みのみ表示
+      </label>
+      <button @click="toggleSort">ソート順: {{ sortDirection === 'asc' ? '昇順' : '降順' }}</button>
+    </div>
+
+    <!-- Article list display -->
+    <div class="article-list">
+      <article v-for="article in sortedArticles" :key="article.id" class="article-item">
+        <h3>{{ article.username }}</h3>
+        <p>{{ article.content }}</p>
+        <p>{{ article.email }}</p>
+        <ul>
+          <li v-for="(tag, index) in article.tags" :key="index">{{ tag }}</li>
+        </ul>
+        <p>作成日: {{ article.createdAt }}</p>
+        <p>いいね: {{ article.likes }}</p>
+        <button v-if="loggedInUser" @click="confirmDelete(article.id)">削除</button>
+        <button @click="toggleBookmark(article.id)">
+          {{ article.bookmarked ? 'ブックマーク解除' : 'ブックマーク' }}
+        </button>
+      </article>
+    </div>
+  </div>
+
+  <script>
+    const app = Vue.createApp({
+      data() {
+        return {
+          res: null,
+          newArticle: {
+            id: null,
+            username: '',
+            tags: [],
+            content: '',
+            email: '',
+            createdAt: null,
+            likes: 0,
+            bookmarked: false,
+          },
+          newTag: '',
+          newFilterTag: '',
+          contents: [], // 修正されたデータ名
+          filters: {
+            username: '',
+            tags: [],
+            bookmarked: false,
+          },
+          sortDirection: 'desc', // Default sort direction
+          isPanelActive: false,
+          loginUserId: '',
+          loggedInUser: null,
+          endpoint: 'http://localhost:8000', // エンドポイントを追加
+        };
+      },
+      computed: {
+        sortedArticles() {
+          let filteredArticles = this.contents.filter(article => {
+            const usernameMatch = article.username.includes(this.filters.username);
+            const tagMatch = this.filters.tags.every(tag => article.tags.includes(tag));
+            const bookmarkedMatch = this.filters.bookmarked ? article.bookmarked : true;
+            return usernameMatch && tagMatch && bookmarkedMatch;
+          });
+
+          return filteredArticles.sort((a, b) => {
+            const dateA = new Date(a.createdAt);
+            const dateB = new Date(b.createdAt);
+            return this.sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+          });
+        },
+      },
+      methods: {
+        addTag() {
+          if (this.newTag && !this.newArticle.tags.includes(this.newTag)) {
+            this.newArticle.tags.push(this.newTag);
+            this.newTag = '';
+          }
+        },
+        removeTag(index) {
+          this.newArticle.tags.splice(index, 1);
+        },
+        addFilterTag() {
+          if (this.newFilterTag && !this.filters.tags.includes(this.newFilterTag)) {
+            this.filters.tags.push(this.newFilterTag);
+            this.newFilterTag = '';
+          }
+        },
+        removeFilterTag(index) {
+          this.filters.tags.splice(index, 1);
+        },
+        toggleSort() {
+          this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        },
+        toggleBookmark(articleId) {
+          const article = this.contents.find(a => a.id === articleId);
+          if (article) {
+            article.bookmarked = !article.bookmarked;
+          }
+        },
+        createArticle() {
+          this.newArticle.id = this.contents.length + 1;
+          this.newArticle.createdAt = new Date().toISOString();
+          this.contents.push({ ...this.newArticle });
+          this.resetNewArticle();
+          this.isPanelActive = false;
+        },
+        resetNewArticle() {
+          this.newArticle = {
+            id: null,
+            username: '',
+            tags: [],
+            content: '',
+            email: '',
+            createdAt: null,
+            likes: 0,
+            bookmarked: false,
+          };
+        },
+        login() {
+          this.loggedInUser = this.loginUserId;
+          this.loginUserId = '';
+        },
+        logout() {
+          this.loggedInUser = null;
+        },
+        confirmDelete(articleId) {
+          if (confirm('本当にこの記事を削除しますか？')) {
+            this.contents = this.contents.filter(article => article.id !== articleId);
+          }
+        },
+      },
+    });
+
+    app.mount('#app');
+  </script>
+</body>
+</html>
