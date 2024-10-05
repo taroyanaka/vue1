@@ -13,6 +13,8 @@ const port = 8000;
 
 const hashUid = (uid) => crypto.createHash('sha256').update(uid).digest('hex');
 
+
+
 // エラーハンドリング付きの初期化エンドポイント
 app.post('/init', (req, res) => {
   try {
@@ -152,23 +154,6 @@ app.get('/get_all', (req, res) => {
     res.status(500).json({ error: 'Failed to fetch data.' });
   }
 });
-
-
-
-const express = require('express');
-const sqlite = require('better-sqlite3');
-const crypto = require('crypto');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-
-const app = express();
-app.use(bodyParser.json());
-app.use(cors());
-
-const db = new sqlite('app8.db');
-const port = 8000;
-
-const hashUid = (uid) => crypto.createHash('sha256').update(uid).digest('hex');
 
 // ------------------ Contents CRUD ------------------
 
