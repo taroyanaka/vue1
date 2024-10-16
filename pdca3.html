@@ -370,7 +370,211 @@ if (progress === 0) {
 }
                     
 
-                },
+                }
+
+                // それぞれのapiをfetchする関数を全て実装
+//                 app.post('/api/init_database', (req, res) => {
+// app.post('/api/insert_data_to_all_tables', (req, res) => {
+// app.post('/api/projects/create', (req, res) =>
+// app.post('/api/packs/create', (req, res) =>
+// app.post('/api/packs/update', (req, res) =>
+// app.post('/api/packs/delete', (req, res) =>
+// app.post('/api/stages/create', (req, res) =>
+// app.post('/api/stages/update', (req, res) =>
+// app.post('/api/stages/delete', (req, res) =>
+// app.post('/api/links/create', (req, res) =>
+// app.post('/api/links/update', (req, res) =>
+// app.post('/api/links/delete', (req, res) =>
+// Initialize database
+,
+async initDatabase() {
+  try {
+    const response = await fetch('/api/init_database', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await response.json();
+    console.log('Database initialized:', data);
+  } catch (error) {
+    console.error('Error initializing database:', error);
+  }
+}
+
+// Insert data into all tables
+,
+async insertDataToAllTables() {
+  try {
+    const response = await fetch('/api/insert_data_to_all_tables', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await response.json();
+    console.log('Data inserted into all tables:', data);
+  } catch (error) {
+    console.error('Error inserting data:', error);
+  }
+}
+
+// Create a project
+,
+async createProject(projectName, dueDate) {
+  try {
+    const response = await fetch('/api/projects/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectName, dueDate }),
+    });
+    const data = await response.json();
+    console.log('Project created:', data);
+  } catch (error) {
+    console.error('Error creating project:', error);
+  }
+}
+
+// Create a pack
+,
+async createPack(projectId, dueDate) {
+  try {
+    const response = await fetch('/api/packs/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, dueDate }),
+    });
+    const data = await response.json();
+    console.log('Pack created:', data);
+  } catch (error) {
+    console.error('Error creating pack:', error);
+  }
+}
+
+// Update a pack
+,
+async updatePack(id, projectId, dueDate) {
+  try {
+    const response = await fetch('/api/packs/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, projectId, dueDate }),
+    });
+    const data = await response.json();
+    console.log('Pack updated:', data);
+  } catch (error) {
+    console.error('Error updating pack:', error);
+  }
+}
+
+// Delete a pack
+,
+async deletePack(id) {
+  try {
+    const response = await fetch('/api/packs/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const data = await response.json();
+    console.log('Pack deleted:', data);
+  } catch (error) {
+    console.error('Error deleting pack:', error);
+  }
+}
+
+// Create a stage
+,
+async createStage(packId, type, description, done) {
+  try {
+    const response = await fetch('/api/stages/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packId, type, description, done }),
+    });
+    const data = await response.json();
+    console.log('Stage created:', data);
+  } catch (error) {
+    console.error('Error creating stage:', error);
+  }
+}
+
+// Update a stage
+,
+async updateStage(id, packId, type, description, done) {
+  try {
+    const response = await fetch('/api/stages/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, packId, type, description, done }),
+    });
+    const data = await response.json();
+    console.log('Stage updated:', data);
+  } catch (error) {
+    console.error('Error updating stage:', error);
+  }
+}
+
+// Delete a stage
+,
+async deleteStage(id) {
+  try {
+    const response = await fetch('/api/stages/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const data = await response.json();
+    console.log('Stage deleted:', data);
+  } catch (error) {
+    console.error('Error deleting stage:', error);
+  }
+}
+
+// Create a link
+,
+async createLink(stageId, name, href, stars) {
+  try {
+    const response = await fetch('/api/links/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stageId, name, href, stars }),
+    });
+    const data = await response.json();
+    console.log('Link created:', data);
+  } catch (error) {
+    console.error('Error creating link:', error);
+  }
+}
+
+// Update a link
+,
+async updateLink(id, stageId, name, href, stars) {
+  try {
+    const response = await fetch('/api/links/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, stageId, name, href, stars }),
+    });
+    const data = await response.json();
+    console.log('Link updated:', data);
+  } catch (error) {
+    console.error('Error updating link:', error);
+  }
+}
+
+// Delete a link
+,
+async deleteLink(id) {
+  try {
+    const response = await fetch('/api/links/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const data = await response.json();
+    console.log('Link deleted:', data);
+  } catch (error) {
+    console.error('Error deleting link:', error);
+  }
+}
+                
 
             }
         }).mount('#app');
