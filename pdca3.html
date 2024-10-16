@@ -151,6 +151,7 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
     <script src="https://cdn.jsdelivr.net/npm/localforage"></script>
     <script>
+        const ary = (data) => JSON.parse(JSON.stringify(data));
         // Load translations from pdca_lang.json
         async function loadTranslations() {
             const response = await fetch('pdca_lang.json');
@@ -178,6 +179,7 @@
                     },
                     projects: [],
                     packs: [],
+                    projects_and_packs: [],
                     sortDirection: {
                         projects: 'asc',
                         packs: 'asc'
@@ -217,7 +219,17 @@
                     return `${pack.plan.description} | ${pack.do.description} | ${pack.check.description} | ${pack.act.description}`;
                 },
                 getPacksByProject(projectId) {
+                    this.makePacksByProject();
                     return this.packs.filter(pack => pack.projectId === projectId);
+                },
+                makePacksByProject() {
+                    const projects = ary(this.projects);
+                    const all_packs = ary(this.packs);
+                    this.projects_and_packs = 
+                        projects.map(project => {
+                            project.packs = all_packs.filter(pack => pack.projectId === project.id);
+                            return project;
+                        });
                 },
                 getProjectName(projectId) {
                     const project = this.projects.find(p => p.id === projectId);
@@ -364,3 +376,323 @@ if (progress === 0) {
     </script>
 </body>
 </html>
+
+
+<!-- 
+const express = require('express');
+const Database = require('better-sqlite3');
+const bodyParser = require('body-parser');
+
+const app = express();
+const db = new Database('pdca_management.db');
+
+// Middleware
+app.use(bodyParser.json());
+
+// Utility: Validate integer input
+const validateInteger = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
+
+// Utility: Validate string length
+const validateStringLength = (value, min, max) => typeof value === 'string' && value.length >= min && value.length <= max;
+
+// Utility: Validate boolean
+const validateBoolean = (value) => typeof value === 'boolean';
+
+// Endpoint to initialize the database
+app.post('/api/init_database', (req, res) => {
+  try {
+    // Create tables
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        uid TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY,
+        userId INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        kpi INTEGER NOT NULL,
+        dueDate INTEGER NOT NULL,
+        difficulty INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (userId) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS packs (
+        id INTEGER PRIMARY KEY,
+        projectId INTEGER NOT NULL,
+        dueDate TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (projectId) REFERENCES projects(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS stages (
+        id INTEGER PRIMARY KEY,
+        packId INTEGER NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('plan', 'do', 'check', 'act')),
+        description TEXT NOT NULL,
+        done BOOLEAN NOT NULL CHECK (done IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (packId) REFERENCES packs(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS links (
+        id INTEGER PRIMARY KEY,
+        stageId INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        href TEXT NOT NULL,
+        stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (stageId) REFERENCES stages(id)
+      );
+    `);
+
+    res.json({ message: 'Database initialized successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to insert data into all tables
+app.post('/api/insert_data_to_all_tables', (req, res) => {
+  const { userId, projects, packs, stages, links } = req.body;
+
+  const insertProject = db.prepare(`
+    INSERT INTO projects (userId, name, description, kpi, dueDate, difficulty)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const insertPack = db.prepare(`
+    INSERT INTO packs (projectId, dueDate)
+    VALUES (?, ?)
+  `);
+  const insertStage = db.prepare(`
+    INSERT INTO stages (packId, type, description, done)
+    VALUES (?, ?, ?, ?)
+  `);
+  const insertLink = db.prepare(`
+    INSERT INTO links (stageId, name, href, stars)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const transaction = db.transaction(() => {
+    try {
+      projects.forEach((project) => {
+        const projectInfo = insertProject.run(userId, project.name, project.description, project.kpi, project.dueDate, project.difficulty);
+        const projectId = projectInfo.lastInsertRowid;
+
+        packs.forEach((pack) => {
+          if (pack.projectId === project.id) {
+            const packInfo = insertPack.run(projectId, pack.dueDate);
+            const packId = packInfo.lastInsertRowid;
+
+            stages.forEach((stage) => {
+              if (stage.packId === pack.id) {
+                const stageInfo = insertStage.run(packId, stage.type, stage.description, stage.done);
+                const stageId = stageInfo.lastInsertRowid;
+
+                links.forEach((link) => {
+                  if (link.stageId === stage.id) {
+                    insertLink.run(stageId, link.name, link.href, link.stars);
+                  }
+                });
+              }
+            });
+          }
+        });
+      });
+
+      res.json({ message: 'Data inserted successfully' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  transaction();
+});
+
+// CRUD for projects
+app.post('/api/projects/create', (req, res) => {
+  const { userId, name, description, kpi, dueDate, difficulty } = req.body;
+
+  if (!validateInteger(kpi, 0, 100) || !validateInteger(dueDate, 0, 9999) || !validateInteger(difficulty, 1, 5)) {
+    return res.status(400).json({ error: 'Invalid kpi, dueDate, or difficulty' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO projects (userId, name, description, kpi, dueDate, difficulty)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(userId, name, description, kpi, dueDate, difficulty);
+    res.json({ id: info.lastInsertRowid });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// CRUD for packs
+app.post('/api/packs/create', (req, res) => {
+  const { projectId, dueDate } = req.body;
+
+  if (!validateStringLength(dueDate, 1, 30)) {
+    return res.status(400).json({ error: 'Invalid dueDate' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO packs (projectId, dueDate)
+      VALUES (?, ?)
+    `);
+    const info = stmt.run(projectId, dueDate);
+    res.json({ id: info.lastInsertRowid });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/packs/update', (req, res) => {
+  const { id, projectId, dueDate } = req.body;
+
+  if (!validateStringLength(dueDate, 1, 30)) {
+    return res.status(400).json({ error: 'Invalid dueDate' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      UPDATE packs SET projectId = ?, dueDate = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    stmt.run(projectId, dueDate, id);
+    res.json({ message: 'Pack updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/packs/delete', (req, res) => {
+  const { id } = req.body;
+
+  try {
+    const stmt = db.prepare(`DELETE FROM packs WHERE id = ?`);
+    stmt.run(id);
+    res.json({ message: 'Pack deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// CRUD for stages
+app.post('/api/stages/create', (req, res) => {
+  const { packId, type, description, done } = req.body;
+
+  if (!validateStringLength(type, 4, 5) || !validateStringLength(description, 1, 100) || !validateBoolean(done)) {
+    return res.status(400).json({ error: 'Invalid input' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO stages (packId, type, description, done)
+      VALUES (?, ?, ?, ?)
+    `);
+    const info = stmt.run(packId, type, description, done ? 1 : 0);
+    res.json({ id: info.lastInsertRowid });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/stages/update', (req, res) => {
+  const { id, packId, type, description, done } = req.body;
+
+  if (!validateStringLength(type, 4, 5) || !validateStringLength(description, 1, 100) || !validateBoolean(done)) {
+    return res.status(400).json({ error: 'Invalid input' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      UPDATE stages SET packId = ?, type = ?, description = ?, done = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    stmt.run(packId, type, description, done ? 1 : 0, id);
+    res.json({ message: 'Stage updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/stages/delete', (req, res) => {
+  const { id } = req.body;
+
+  try {
+    const stmt = db.prepare(`DELETE FROM stages WHERE id = ?`);
+    stmt.run(id);
+    res.json({ message: 'Stage deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// CRUD for links
+app.post('/api/links/create', (req, res) => {
+  const { stageId, name, href, stars } = req.body;
+
+  if (!validateStringLength(name, 1, 50) || !validateStringLength(href, 1, 200) || !validateInteger(stars, 1, 5)) {
+    return res.status(400).json({ error: 'Invalid input' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO links (stageId, name, href, stars)
+      VALUES (?, ?, ?, ?)
+    `);
+    const info = stmt.run(stageId, name, href, stars);
+    res.json({ id: info.lastInsertRowid });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/links/update', (req, res) => {
+  const { id, stageId, name, href, stars } = req.body;
+
+  if (!validateStringLength(name, 1, 50) || !validateStringLength(href, 1, 200) || !validateInteger(stars, 1, 5)) {
+    return res.status(400).json({ error: 'Invalid input' });
+  }
+
+  try {
+    const stmt = db.prepare(`
+      UPDATE links SET stageId = ?, name = ?, href = ?, stars = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    stmt.run(stageId, name, href, stars, id);
+    res.json({ message: 'Link updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/links/delete', (req, res) => {
+  const { id } = req.body;
+
+  try {
+    const stmt = db.prepare(`DELETE FROM links WHERE id = ?`);
+    stmt.run(id);
+    res.json({ message: 'Link deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Start server
+app.listen(3000, () => {
+  console.log('Server running on http://localhost:3000');
+});
+-->
