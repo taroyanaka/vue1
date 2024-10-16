@@ -219,6 +219,7 @@
                     return `${pack.plan.description} | ${pack.do.description} | ${pack.check.description} | ${pack.act.description}`;
                 },
                 getPacksByProject(projectId) {
+                    // getPacksByProjectをmakePacksByProjectに置き換え予定
                     this.makePacksByProject();
                     return this.packs.filter(pack => pack.projectId === projectId);
                 },
