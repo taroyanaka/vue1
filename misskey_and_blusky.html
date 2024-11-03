@@ -31,7 +31,9 @@
             <!-- misskeyApiToken<input type="password" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on"> -->
             misskeyApiToken<input type="text" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on">
             blueskyPassword: <input type="password" name="" id="" v-model="blueskyPassword" autocomplete="on">
-            <textarea id="noteContent" v-model="noteContent" placeholder="text of the note"></textarea>
+            <div>
+                <textarea id="noteContent" v-model="noteContent" placeholder="text of the note" cols="30" rows="10"></textarea>
+            </div>
             <div v-if="misskeyApiToken && blueskyApiToken && noteContent">
             <!-- <button @click="postNote">misskeyとblueskyに投稿</button> -->
             <input type="submit" @click="postNote" value="misskeyとblueskyに投稿">
