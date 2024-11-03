@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>compare text</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.45/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 800px;
+            position: relative;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 20px;
+            padding: 10px;
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            resize: none;
+        }
+        .diff-output {
+            white-space: pre-wrap;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .highlight {
+            background-color: #ADD8E6;
+        }
+        .deleted {
+            color: red;
+            text-decoration: line-through;
+        }
+        .added {
+            color: blue;
+        }
+        button {
+            margin-bottom: 10px;
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .compare-btn-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+        }
+        .compare-btn-container button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.5rem;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="container">
+        <button @click="toggleText1Visibility">{{ text1Visible ? 'Hide' : 'Show' }} Text 1</button>
+        <textarea v-if="text1Visible" v-model="text1" placeholder="text 1"></textarea>
+        <textarea v-model="text2" placeholder="text 2"></textarea>
+        <input v-model="pairName" placeholder="Pair name">
+        <button v-if="pairName" @click="savePair">Save Pair</button>
+        <select v-model="selectedPair" @change="loadSelectedPair">
+            <option v-for="pair in pairList" :key="pair.name" :value="pair.name">{{ pair.name }}</option>
+        </select>
+        <button v-if="selectedPair" @click="deletePair">Delete Selected Pair</button>
+        <div class="diff-output" ref="diffOutput">
+            <div v-for="(line, index) in diff" :key="index">
+                {{ index + 1 }}:
+                <span v-for="(part, partIndex) in line.parts" :key="partIndex" :class="part.class">
+                    {{ part.text }}
+                </span>
+            </div>
+        </div>
+        <div class="compare-btn-container">
+            <button @click="compareTexts">Compare</button>
+        </div>
+    </div>
+
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    text1: `I stepped on the cat,
+It didn't like that,
+And now it's gone away.
+猫ネコ猫ねこ🐈`,
+                    text2: `I stepped on the dog,
+It didn't hate that,
+And now it's gone away.
+猫ネコ犬🐕ねこ🐕`,
+                    diff: [],
+                    text1Visible: true,
+                    pairName: '',
+                    pairList: [],
+                    selectedPair: ''
+                }
+            },
+            mounted() {
+                this.loadPairs();
+            },
+            methods: {
+                toggleText1Visibility() {
+                    this.text1Visible = !this.text1Visible;
+                },
+                compareTexts() {
+                    const lines1 = this.text1.split('\n');
+                    const lines2 = this.text2.split('\n');
+                    this.diff = [];
+
+                    const maxLines = Math.max(lines1.length, lines2.length);
+
+                    for (let i = 0; i < maxLines; i++) {
+                        const line1 = lines1[i] || '';
+                        const line2 = lines2[i] || '';
+
+                        if (line1 !== line2) {
+                            this.diff.push({
+                                parts: this.generateDiffParts(line1, line2)
+                            });
+                        } else {
+                            this.diff.push({
+                                parts: [{ text: line1, class: '' }]
+                            });
+                        }
+                    }
+                },
+                generateDiffParts(line1, line2) {
+                    const parts1 = line1.split(/(\s+)/);
+                    const parts2 = line2.split(/(\s+)/);
+                    const maxParts = Math.max(parts1.length, parts2.length);
+                    const result = [];
+
+                    for (let i = 0; i < maxParts; i++) {
+                        const part1 = parts1[i] || '';
+                        const part2 = parts2[i] || '';
+
+                        if (part1 !== part2) {
+                            if (part1) result.push({ text: part1, class: 'deleted' });
+                            if (part2) result.push({ text: part2, class: 'added' });
+                        } else {
+                            result.push({ text: part1 || part2, class: '' });
+                        }
+                    }
+                    return result;
+                },
+                async savePair() {
+                    if (!this.pairName.trim()) {
+                        alert('Please enter a name for the pair.');
+                        return;
+                    }
+
+                    const pairData = {
+                        text1: this.text1,
+                        text2: this.text2
+                    };
+
+                    await localforage.setItem(this.pairName, pairData);
+                    await this.loadPairs();
+                    this.pairName = '';
+                },
+                async loadPairs() {
+                    this.pairList = [];
+                    const keys = await localforage.keys();
+                    this.pairList = keys.map(key => ({ name: key }));
+                },
+                async loadSelectedPair() {
+                    if (!this.selectedPair) return;
+
+                    const pairData = await localforage.getItem(this.selectedPair);
+                    if (pairData) {
+                        this.text1 = pairData.text1;
+                        this.text2 = pairData.text2;
+                    }
+                },
+                async deletePair() {
+                    if (!this.selectedPair) {
+                        alert('Please select a pair to delete.');
+                        return;
+                    }
+
+                    await localforage.removeItem(this.selectedPair);
+                    await this.loadPairs();
+                    this.selectedPair = '';
+                    this.text1 = '';
+                    this.text2 = '';
+                }
+            }
+        }).mount('#app');
+
+        // app.mount('#app');
+    </script>
+</body>
+</html>

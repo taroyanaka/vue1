@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint App</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <button id="exportButton">Export</button>
+    <button id="undoButton">Undo</button>
+    <canvas id="canvas" width="700vw" height="700vh"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const exportButton = document.getElementById('exportButton');
+        const undoButton = document.getElementById('undoButton');
+        let drawing = false;
+        let base64Image;
+        const undoStack = [];
+
+        function startDrawing(e) {
+            drawing = true;
+            saveState();
+            ctx.beginPath(); // Begin a new path to avoid connecting lines
+        }
+
+        function stopDrawing() {
+            drawing = false;
+            ctx.beginPath(); // Begin a new path to avoid connecting lines
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function saveState() {
+            undoStack.push(canvas.toDataURL());
+        }
+
+        function undo() {
+            if (undoStack.length > 0) {
+                const previousState = undoStack.pop();
+                const img = new Image();
+                img.src = previousState;
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                };
+            }
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling on touch devices
+            startDrawing(e.touches[0]);
+        });
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            draw(e.touches[0]);
+        });
+
+        exportButton.addEventListener('click', () => {
+            base64Image = canvas.toDataURL('image/png');
+            alert('Base64 Image Data URL has been saved to the global variable `base64Image`.');
+            console.log(base64Image); // Optional: View the Base64 string in the console
+        });
+
+        undoButton.addEventListener('click', undo);
+    </script>
+</body>
+</html>

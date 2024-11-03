@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Misskey & Bluesky Note Poster</title>
+    <script src="./vue3.js"></script>
+</head>
+<body>
+    <div id="app">
+        <h1>Misskey & Bluesky Note Poster</h1>
+        <div>
+            <label for="misskeyApiToken">Misskey APIトークン:</label>
+            <input type="text" id="misskeyApiToken" v-model="misskeyApiToken">
+        </div>
+        <div>
+            <label for="blueskyApiToken">Bluesky APIトークン(accessJwt):</label>
+            <input type="text" id="blueskyApiToken" v-model="blueskyApiToken">
+        </div>
+        <div>
+            <label for="noteContent">ノート内容:</label>
+            <textarea id="noteContent" v-model="noteContent"></textarea>
+        </div>
+        <button @click="postNote">投稿</button>
+        <p v-if="responseMessage">{{ responseMessage }}</p>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    misskeyApiToken: '',
+                    blueskyApiToken: '',
+                    noteContent: '',
+                    responseMessage: ''
+                };
+            },
+            methods: {
+                async postNote() {
+                    const misskeyUrl = 'https://misskey.io/api/notes/create';
+                    const blueskyUrl = 'https://bsky.social/xrpc/com.atproto.repo.createRecord';
+
+                    const misskeyPayload = {
+                        i: this.misskeyApiToken,
+                        text: this.noteContent
+                    };
+
+                    const blueskyPayload = {
+                        repo: 'taro-yanaka.bsky.social',
+                        collection: 'app.bsky.feed.post',
+                        record: {
+                            text: this.noteContent,
+                            createdAt: new Date().toISOString()
+                        }
+                    };
+
+                    try {
+                        const misskeyResponse = await fetch(misskeyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(misskeyPayload)
+                        });
+
+                        const blueskyResponse = await fetch(blueskyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${this.blueskyApiToken}`
+                            },
+                            body: JSON.stringify(blueskyPayload)
+                        });
+
+                        if (misskeyResponse.ok && blueskyResponse.ok) {
+                            this.responseMessage = 'ノートがMisskeyとBlueskyに正常に投稿されました。';
+                        } else {
+                            this.responseMessage = 'ノートの投稿に失敗しました。';
+                        }
+                    } catch (error) {
+                        this.responseMessage = 'エラーが発生しました: ' + error.message;
+                    }
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+<!-- accessJwt(blueskyのAPIキーを取得するために)以下の内容でcurlのコマンドを作成して
+URI : https://bsky.social/xrpc/com.atproto.server.createSession
+Method : Post
+Headers : Content-Type : application/json
+Body : { "identifier": "taro-yanaka.bsky.social",
+"password": "YOUR_BLUE_SKY_PASSWORD" } -->
+</html>

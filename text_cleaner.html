@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Text Replacement App</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.4.0/firebase-auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.11/dist/clipboard.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="loginContainer">
+            <button class="loginButton" v-if="user === null" @click="googleLogin">Login with Google</button>
+            <div id="loginResult" v-if="user !== null">{{ loginResult }} <button @click="signOut">Sign Out</button></div>
+        </div>
+
+        <div>
+            <h2>Text Replacement App</h2>
+            <div
+                style="color: green;"
+            >{{ save_result }}</div>
+
+            <button @click="applyReplacements">Apply Replacements</button>
+            <textarea v-model="inputText" placeholder="Enter text to replace..."></textarea>
+            
+            <div v-for="(rule, index) in replacementRules" :key="index">
+                <input type="text" v-model="rule.before" placeholder="Text to replace" />
+                <input type="text" v-model="rule.after" placeholder="Replace with" />
+                <button @click="removeRule(rule)" v-if="user !== null">Remove</button>
+            </div>
+            <button @click="addRule" v-if="user !== null">Add Replacement Rule</button>
+            <button @click="saveRules" v-if="user !== null">Save Rules</button>
+
+            
+            <p id="outputText"
+            >{{ outputText }}</p>
+            <!-- clipboard -->
+            <button id="copyButton" class="btn" data-clipboard-target="#outputText" v-if="outputText">Copy</button>
+        </div>
+    </div>
+
+    <script>
+      const clipboard = new ClipboardJS('.btn');
+
+      let tmp_data;
+        const firebaseConfig = {
+            apiKey: "AIzaSyBcOlIDP2KWbJuKM0WeMHNp-WvjTVfLt9Y",
+            authDomain: "p2auth-ea50a.firebaseapp.com",
+            projectId: "p2auth-ea50a",
+            storageBucket: "p2auth-ea50a.appspot.com",
+            messagingSenderId: "796225429484",
+            appId: "1:796225429484:web:ece56ef2fc0be28cd6eac9"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+        const app = Vue.createApp({
+            data() {
+                return {
+                    endpoint: 'https://cotton-concrete-catsup.glitch.me',
+                    password: 'init',
+                    user: null,
+                    loginResult: 'Not logged in',
+                    inputText: 'あいウンチえお',
+                    outputText: '',
+                    replacementRules: [],
+                    save_result: '',
+                };
+            },
+            mounted() {
+                this.checkLogin();
+            },
+            methods: {
+                checkLogin() {
+                    firebase.auth().onAuthStateChanged(user => {
+                        if (user) {
+                            this.user = user;
+                            this.loginResult = `Logged in as: ${this.user.displayName}`;
+                            this.loadRules();
+                        } else {
+                            this.user = null;
+                            this.loginResult = 'Not logged in';
+                            this.loadRules();
+                        }
+                    });
+                },
+                googleLogin() {
+                    firebase.auth().signInWithPopup(googleProvider).then(result => {
+                        this.user = result.user;
+                        this.loginResult = `Logged in as: ${this.user.displayName}`;
+                        this.loadRules();
+                    }).catch(error => {
+                        console.error('Error during Google login:', error);
+                        alert('Google login failed. ' + error.message);
+                    });
+                },
+                signOut() {
+                    firebase.auth().signOut().then(() => {
+                        this.user = null;
+                        this.loginResult = 'Not logged in';
+                    }).catch(error => {
+                        console.error('Error during sign-out:', error);
+                        alert('Sign out failed. ' + error.message);
+                    });
+                },
+                addRule() {
+                    this.replacementRules.push({ before: '', after: '' });
+                },
+                removeRule(rule) {
+                    console.log('Deleting rule:', rule); // デバッグ用ログ
+                
+                    if (!rule.id) {
+                        console.error('Rule id is undefined');
+                        return;
+                    }
+                
+                    fetch(`${this.endpoint}/api/cleaner/delete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: rule.id,
+                            uid: this.user.uid
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.message) {
+                            console.log('Rule deleted successfully:', data.message);
+                            this.loadRules(); // Refresh the rules list
+                        } else {
+                            console.error('Error deleting rule:', data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting rule:', error);
+                    });
+                },
+                applyReplacements() {
+                    let text = this.inputText;
+                    this.replacementRules.forEach(rule => {
+                        const regex = new RegExp(rule.before, 'g');
+                        text = text.replace(regex, rule.after);
+                    });
+                    this.outputText = text;
+                },
+                loadRules() {
+                    let url = `${this.endpoint}/api/cleaner`;
+                    if (this.user && this.user.uid) {
+                        url += `?uid=${this.user.uid}`;
+                    }
+                
+                    fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.replacementRules = data.map(rule => ({
+                            // app.replacementRulesにidとuidが含まれていないので、ここで追加する
+                            id: rule.id,
+                            uid: rule.uid,
+                            before: rule.before,
+                            after: rule.after
+                        }));
+                    })
+                    .catch(error => {
+                        console.error('Error loading rules:', error);
+                    });
+                },
+                saveRules() {
+                    this.replacementRules.forEach(rule => {
+                        fetch(`${this.endpoint}/api/cleaner`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                id: rule.id,
+                                before: rule.before,
+                                after: rule.after,
+                                uid: this.user ? this.user.uid : null
+                            })
+                        })
+                        .then(response => {
+                            if (response.status === 201) {
+                                console.log('Rule saved successfully:', response.statusText);
+                                this.save_result = 'Saved successfully';
+
+                            } else {
+                                console.error('Error saving rule:', response.statusText);
+                            }
+                        })
+                        // .catch(error => {
+                        //     console.error('Error saving rule:', error);
+                        // });
+                    });
+                },
+                // app.post('/api/init-database', (req, res) => {
+                async initDatabase() {
+                    const response = await fetch(`${this.endpoint}/api/init-database`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ password: this.password })
+                    });
+                    if (response.ok) {
+                        alert('Database initialized.');
+                    } else {
+                        alert('Error initializing database.');
+                    }
+                },
+            }
+        }).mount('#app');
+    </script>
+</body>
+<!-- serverside node.js express.js -->
+
+<!-- 
+// Initialize SQLite database
+const db_for_cleaner = BetterSqlite3('cleaner.db');
+
+// Function to initialize the database table
+const initializeDatabase_cleaner = () => {
+    db_for_cleaner.exec('DROP TABLE IF EXISTS cleaner');
+    db_for_cleaner.exec(`
+        CREATE TABLE cleaner (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            before TEXT NOT NULL,
+            after TEXT NOT NULL,
+            uid TEXT NOT NULL,
+            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+};
+
+// Endpoint to initialize the database table
+app.post('/api/init-database', (req, res) => {
+    const { password } = req.body;
+
+    if (password === 'init') {
+        try {
+            initializeDatabase_cleaner();
+            res.status(200).json({ message: 'Database initialized successfully.' });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to initialize database.' });
+        }
+    } else {
+        res.status(403).json({ error: 'Unauthorized: Invalid password.' });
+    }
+});
+
+app.post('/api/cleaner', (req, res) => {
+    const { id, before, after, uid } = req.body;
+
+    // 入力の検証
+    if (typeof before !== 'string' || 
+        typeof after !== 'string' || 
+        typeof uid !== 'string' || 
+        before.length < 1 || before.length > 10 || 
+        after.length < 1 || after.length > 10) {
+        return res.status(400).json({ error: 'Invalid input. "before" and "after" fields must be valid strings with length between 1 and 10 characters.' });
+    }
+
+    // 提供された ID が既に存在するかを確認
+    const existingRule = db_for_cleaner.prepare('SELECT id FROM cleaner WHERE id = ?').get(id);
+
+    if (existingRule) {
+        // ID が既に存在する場合はレスポンスを返して終了
+        res.status(200).json({ message: 'ID already exists. No action taken.' });
+        return res.end();
+    } else if (id === null || id === undefined) {
+        // ID が提供されていない、または存在しない場合は新しいルールを挿入
+        const stmt = db_for_cleaner.prepare('INSERT INTO cleaner (before, after, uid) VALUES (?, ?, ?)');
+        const result = stmt.run(before, after, uid);
+
+        // レスポンスを返す
+        return res.status(201).json({
+            before,
+            after,
+            uid,
+            created: new Date().toISOString(),
+            updated: new Date().toISOString()
+        });
+    }
+});
+
+
+// Endpoint to fetch all cleaner rules or specific user's rules
+app.get('/api/cleaner', (req, res) => {
+    const { uid } = req.query;
+
+    try {
+        if (uid) {
+            const stmt = db_for_cleaner.prepare('SELECT * FROM cleaner WHERE uid = ?');
+            const rows = stmt.all(uid);
+            res.status(200).json(rows);
+        } else {
+            const stmt = db_for_cleaner.prepare('SELECT * FROM cleaner');
+            const rows = stmt.all();
+            res.status(200).json(rows);
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve rules.' });
+    }
+});
+
+// Endpoint to delete a specific cleaner rule
+app.post('/api/cleaner/delete', (req, res) => {
+    const { id, uid } = req.body;
+
+    console.log('Received id:', id, 'and uid:', uid); // デバッグ用ログ
+
+    if (typeof id !== 'number' || typeof uid !== 'string') {
+        return res.status(400).json({ error: 'Invalid input.' });
+    }
+
+    const stmt = db_for_cleaner.prepare('DELETE FROM cleaner WHERE id = ? AND uid = ?');
+    const result = stmt.run(id, uid);
+
+    if (result.changes > 0) {
+        res.status(200).json({ message: 'Rule deleted successfully.' });
+    } else {
+        res.status(404).json({ error: 'Rule not found.' });
+    }
+});
+
+-->
+</html>
