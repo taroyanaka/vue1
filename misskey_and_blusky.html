@@ -27,7 +27,7 @@
 
         <h1>Misskey & Bluesky Note Poster</h1>
         <div>
-            <form id="noteForm" action="" method="post">
+            <form id="noteForm">
             <!-- misskeyApiToken<input type="password" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on"> -->
             misskeyApiToken<input type="text" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on">
             blueskyPassword: <input type="password" name="" id="" v-model="blueskyPassword" autocomplete="on">
@@ -49,7 +49,7 @@
         </div>
         <p v-if="responseMessage">{{ responseMessage }}</p>
         <div>
-            version 0.1
+            version 0.2
         </div>
     </div>
 
