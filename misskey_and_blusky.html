@@ -41,15 +41,15 @@
         </div>
 
         <div>
-            <!-- <div v-if="!blueskyApiToken"> -->
+            <div v-if="!blueskyApiToken">
             <button @click="get_accessJwt">get_accessJwt</button>
-            <!-- </div> -->
+            </div>
             <input type="hidden" id="blueskyApiToken" v-model="blueskyApiToken">
              {{ blueskyApiToken ? "blue sky api token is set, ready" : "" }}
         </div>
         <p v-if="responseMessage">{{ responseMessage }}</p>
         <div>
-            version 0.2
+            version 0.3
         </div>
     </div>
 
