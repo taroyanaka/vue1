@@ -21,8 +21,9 @@
 
         <h1>Misskey & Bluesky Note Poster</h1>
         <div>
-            <form>
-            misskeyApiToken<input type="text" id="misskeyApiToken" v-model="misskeyApiToken">
+            <form action="" method="post">
+            <!-- misskeyApiToken<input type="password" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on"> -->
+            misskeyApiToken<input type="text" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on">
             blueskyPassword: <input type="password" name="" id="" v-model="blueskyPassword" autocomplete="on">
             <textarea id="noteContent" v-model="noteContent" placeholder="text of the note"></textarea>
             </form>
