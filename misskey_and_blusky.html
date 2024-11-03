@@ -15,21 +15,39 @@
         <div>
             <a href="https://misskey.io/@yanaka">https://misskey.io/@yanaka</a>
         </div>
+        <div>
+            <a href="https://taroyanaka.github.io/vue1/misskey_and_blusky.html">https://taroyanaka.github.io/vue1/misskey_and_blusky.html</a>
+        </div>
+
 
         <h1>Misskey & Bluesky Note Poster</h1>
         <div>
-            <label for="misskeyApiToken">Misskey APIトークン:</label>
-            <input type="text" id="misskeyApiToken" v-model="misskeyApiToken">
+            <form>
+            misskeyApiToken<input type="text" id="misskeyApiToken" v-model="misskeyApiToken">
+            blueskyPassword: <input type="password" name="" id="" v-model="blueskyPassword" autocomplete="on">
+            <textarea id="noteContent" v-model="noteContent" placeholder="text of the note"></textarea>
+            </form>
+            <div v-if="misskeyApiToken && blueskyApiToken && noteContent">
+            <button @click="postNote">misskeyとblueskyに投稿</button>
+            </div>
+
+
+
+
+        <!-- ランダムな10文字の文字列 -->
+
+
+
         </div>
         <div>
-            <label for="blueskyApiToken">Bluesky APIトークン(accessJwt):</label>
-            <input type="text" id="blueskyApiToken" v-model="blueskyApiToken">
+            <div v-if="!blueskyApiToken">
+            <button @click="get_accessJwt">get_accessJwt</button>
+            </div>
+            <!-- <label for="blueskyApiToken">Bluesky APIトークン(accessJwt):</label> -->
+            <input type="hidden" id="blueskyApiToken" v-model="blueskyApiToken">
+            <!-- blueskyApiTokenがセットされたらセットされたと表示 -->
+             {{ blueskyApiToken ? "blue sky api token is set, ready" : "" }}
         </div>
-        <div>
-            <label for="noteContent">ノート内容:</label>
-            <textarea id="noteContent" v-model="noteContent"></textarea>
-        </div>
-        <button @click="postNote">投稿</button>
         <p v-if="responseMessage">{{ responseMessage }}</p>
     </div>
 
@@ -39,6 +57,7 @@
         createApp({
             data() {
                 return {
+                    blueskyPassword: '',
                     misskeyApiToken: '',
                     blueskyApiToken: '',
                     noteContent: '',
@@ -46,6 +65,26 @@
                 };
             },
             methods: {
+async get_accessJwt(){
+    const identifier = "taro-yanaka.bsky.social";
+            const password = this.blueskyPassword;
+
+            const response = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    identifier: identifier,
+                    password: password
+                })
+            });
+            const data = await response.json();
+            const accessJwt = data.accessJwt;
+            this.blueskyApiToken = accessJwt;
+
+},
+                
                 async postNote() {
                     const misskeyUrl = 'https://misskey.io/api/notes/create';
                     const blueskyUrl = 'https://bsky.social/xrpc/com.atproto.repo.createRecord';
