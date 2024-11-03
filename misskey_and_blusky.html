@@ -27,21 +27,23 @@
 
         <h1>Misskey & Bluesky Note Poster</h1>
         <div>
-            <form action="" method="post">
+            <form id="noteForm" action="" method="post">
             <!-- misskeyApiToken<input type="password" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on"> -->
             misskeyApiToken<input type="text" id="misskeyApiToken" v-model="misskeyApiToken" autocomplete="on">
             blueskyPassword: <input type="password" name="" id="" v-model="blueskyPassword" autocomplete="on">
             <textarea id="noteContent" v-model="noteContent" placeholder="text of the note"></textarea>
-            </form>
             <div v-if="misskeyApiToken && blueskyApiToken && noteContent">
-            <button @click="postNote">misskeyとblueskyに投稿</button>
+            <!-- <button @click="postNote">misskeyとblueskyに投稿</button> -->
+            <input type="submit" @click="postNote" value="misskeyとblueskyに投稿">
             </div>
+            </form>
+
         </div>
 
         <div>
-            <div v-if="!blueskyApiToken">
+            <!-- <div v-if="!blueskyApiToken"> -->
             <button @click="get_accessJwt">get_accessJwt</button>
-            </div>
+            <!-- </div> -->
             <input type="hidden" id="blueskyApiToken" v-model="blueskyApiToken">
              {{ blueskyApiToken ? "blue sky api token is set, ready" : "" }}
         </div>
