@@ -6,19 +6,32 @@
     <title>9x9 数独アプリ</title>
     <script src="./vue3.js"></script>
     <style>
-        .grid {
-            display: flex;
-            flex-wrap: wrap;
-            max-width: 270px;
-            margin: auto;
-        }
-        .cell {
-            width: 30px;
-            height: 30px;
-            text-align: center;
-            border: 1px solid #000;
-            box-sizing: border-box;
-        }
+    .grid {
+        display: flex;
+        flex-wrap: wrap;
+        max-width: 270px;
+        margin: auto;
+    }
+    .cell {
+        width: 30px;
+        height: 30px;
+        text-align: center;
+        border: 1px solid #000;
+        box-sizing: border-box;
+    }
+    .cell:nth-child(3n) {
+        border-right: 4px solid #000;
+    }
+    .cell:nth-child(3n + 1) {
+        border-left: 4px solid #000;
+    }
+    .cell:nth-child(n+19):nth-child(-n+27) {
+        border-bottom: 4px solid #000;
+    }
+    .cell:nth-child(n+46):nth-child(-n+54) {
+        border-bottom: 4px solid #000;
+    }
+        
     </style>
 </head>
 <body>
@@ -31,6 +44,11 @@
         <button @click="generateProblem('easy')">初級</button>
         <button @click="generateProblem('medium')">中級</button>
         <button @click="generateProblem('hard')">上級</button>
+        <button @click="generateProblem('level1')">レベル1</button>
+        <button @click="generateProblem('level2')">レベル2</button>
+        <button @click="generateProblem('level3')">レベル3</button>
+        <button @click="generateProblem('level4')">レベル4</button>
+        <button @click="generateProblem('level5')">レベル5</button>
         <button @click="checkSolution">解答をチェック</button>
         <button @click="fillSolution">模範解答を埋める</button>
         <div>残り時間: {{ timeLeft }}秒</div>
@@ -63,14 +81,7 @@
                         }
                     }, 1000);
                 },
-                stopTimer() {
-                    if (this.timer) {
-                        clearInterval(this.timer);
-                        this.timer = null;
-                    }
-                },
                 resetGame() {
-                    this.stopTimer();
                     this.grid.forEach(cell => cell.value = '');
                 },
                 generateProblem(difficulty) {
@@ -87,6 +98,16 @@
                         filledCells = Math.floor(0.8 * 81); // 80%
                     } else if (difficulty === 'hard') {
                         filledCells = Math.floor(0.7 * 81); // 70%
+                    } else if (difficulty === 'level1') {
+                        filledCells = Math.floor(0.6 * 81); // 60%
+                    } else if (difficulty === 'level2') {
+                        filledCells = Math.floor(0.5 * 81); // 50%
+                    } else if (difficulty === 'level3') {
+                        filledCells = Math.floor(0.4 * 81); // 40%
+                    } else if (difficulty === 'level4') {
+                        filledCells = Math.floor(0.3 * 81); // 30%
+                    } else if (difficulty === 'level5') {
+                        filledCells = Math.floor(0.2 * 81); // 20%
                     }
 
                     const problem = [...baseGrid];
@@ -122,12 +143,20 @@
                     const userSolution = this.grid.map(cell => cell.value);
                     for (let i = 0; i < this.solutions.length; i++) {
                         if (userSolution[i] !== this.solutions[i]) {
-                            alert('間違いがあります！');
+                            alert('❎');
                             return;
                         }
                     }
-                    this.stopTimer();
-                    alert('正解です！');
+                    const stopTimer = () => {
+                        clearInterval(this.timer);
+                        this.timer = null;
+                    };
+                    // タイマーをストップ
+                    stopTimer();
+
+                    alert('⭕️');
+
+
                 },
                 fillSolution() {
                     this.grid.forEach((cell, index) => {
