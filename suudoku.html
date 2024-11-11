@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>9x9 数独アプリ</title>
+    <script src="./vue3.js"></script>
+    <style>
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            max-width: 270px;
+            margin: auto;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            text-align: center;
+            border: 1px solid #000;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="grid">
+            <div v-for="(cell, index) in grid" :key="index" class="cell">
+                <input type="text" v-model="cell.value" maxlength="1">
+            </div>
+        </div>
+        <button @click="generateProblem('easy')">初級</button>
+        <button @click="generateProblem('medium')">中級</button>
+        <button @click="generateProblem('hard')">上級</button>
+        <button @click="checkSolution">解答をチェック</button>
+        <button @click="fillSolution">模範解答を埋める</button>
+        <div>残り時間: {{ timeLeft }}秒</div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    grid: Array.from({ length: 81 }, () => ({ value: '' })),
+                    solutions: Array.from({ length: 81 }, () => ''),
+                    timeLeft: 300, // 5分
+                    timer: null
+                };
+            },
+            methods: {
+                startTimer() {
+                    if (this.timer) {
+                        clearInterval(this.timer);
+                    }
+                    this.timeLeft = 300; // 5分
+                    this.timer = setInterval(() => {
+                        this.timeLeft--;
+                        if (this.timeLeft <= 0) {
+                            clearInterval(this.timer);
+                            alert('時間切れです！ゲームをリセットします。');
+                            this.resetGame();
+                        }
+                    }, 1000);
+                },
+                stopTimer() {
+                    if (this.timer) {
+                        clearInterval(this.timer);
+                        this.timer = null;
+                    }
+                },
+                resetGame() {
+                    this.stopTimer();
+                    this.grid.forEach(cell => cell.value = '');
+                },
+                generateProblem(difficulty) {
+                    this.startTimer();
+                    this.resetGame();
+
+                    // 数独のルールに従って問題を生成する
+                    const baseGrid = this.generateBaseGrid();
+                    let filledCells;
+
+                    if (difficulty === 'easy') {
+                        filledCells = Math.floor(0.9 * 81); // 90%
+                    } else if (difficulty === 'medium') {
+                        filledCells = Math.floor(0.8 * 81); // 80%
+                    } else if (difficulty === 'hard') {
+                        filledCells = Math.floor(0.7 * 81); // 70%
+                    }
+
+                    const problem = [...baseGrid];
+                    for (let i = 0; i < 81 - filledCells; i++) {
+                        let index;
+                        do {
+                            index = Math.floor(Math.random() * 81);
+                        } while (problem[index] === '');
+                        problem[index] = '';
+                    }
+
+                    this.grid.forEach((cell, index) => {
+                        cell.value = problem[index];
+                        this.solutions[index] = baseGrid[index];
+                    });
+                },
+                generateBaseGrid() {
+                    // 数独の基本的な解答グリッドを生成する
+                    const baseGrid = Array.from({ length: 81 }, () => '');
+                    const rows = 9;
+                    const cols = 9;
+
+                    for (let i = 0; i < rows; i++) {
+                        for (let j = 0; j < cols; j++) {
+                            const num = (i * 3 + Math.floor(i / 3) + j) % 9 + 1;
+                            baseGrid[i * cols + j] = num.toString();
+                        }
+                    }
+
+                    return baseGrid;
+                },
+                checkSolution() {
+                    const userSolution = this.grid.map(cell => cell.value);
+                    for (let i = 0; i < this.solutions.length; i++) {
+                        if (userSolution[i] !== this.solutions[i]) {
+                            alert('間違いがあります！');
+                            return;
+                        }
+                    }
+                    this.stopTimer();
+                    alert('正解です！');
+                },
+                fillSolution() {
+                    this.grid.forEach((cell, index) => {
+                        cell.value = this.solutions[index];
+                    });
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
