@@ -51,9 +51,9 @@
                 <textarea id="noteContent" v-model="noteContent" placeholder="text of the note" cols="30" rows="10"></textarea>
             </div>
 
-            <!-- 画像選択エリア -->
+            <!-- 画像選択・貼り付けエリア -->
             <div style="margin: 10px 0;">
-                <label>画像（1枚のみ）: </label>
+                <label>画像（1枚のみ / <b>Ctrl+V での貼り付けにも対応</b>）: </label>
                 <input type="file" ref="fileInput" accept="image/*" @change="onFileChange">
                 <div v-if="imagePreviewUrl" class="preview-container">
                     <img :src="imagePreviewUrl" class="preview-image" alt="プレビュー">
@@ -76,7 +76,7 @@
         </div>
         <div v-if="responseMessage" class="response-message">{{ responseMessage }}</div>
         <div>
-            version 0.7
+            version 0.8
         </div>
     </div>
 
@@ -95,6 +95,13 @@
                     responseMessage: '',
                     isPosting: false
                 };
+            },
+            mounted() {
+                // 画面全体のペーストイベント（Ctrl+V）を監視
+                window.addEventListener('paste', this.handlePaste);
+            },
+            beforeUnmount() {
+                window.removeEventListener('paste', this.handlePaste);
             },
             methods: {
                 async get_accessJwt() {
@@ -128,8 +135,34 @@
                 onFileChange(event) {
                     const file = event.target.files[0];
                     if (file) {
-                        this.selectedFile = file;
-                        this.imagePreviewUrl = URL.createObjectURL(file);
+                        this.setFile(file);
+                    }
+                },
+
+                // 画像ファイルをセット（プレビュー生成）
+                setFile(file) {
+                    this.selectedFile = file;
+                    if (this.imagePreviewUrl) {
+                        URL.revokeObjectURL(this.imagePreviewUrl);
+                    }
+                    this.imagePreviewUrl = URL.createObjectURL(file);
+                },
+
+                // クリップボード貼り付けイベントの処理
+                handlePaste(event) {
+                    const clipboardData = event.clipboardData || window.clipboardData;
+                    if (!clipboardData || !clipboardData.items) return;
+
+                    for (let i = 0; i < clipboardData.items.length; i++) {
+                        const item = clipboardData.items[i];
+                        if (item.type.indexOf('image') !== -1) {
+                            const file = item.getAsFile();
+                            if (file) {
+                                this.setFile(file);
+                                event.preventDefault(); // テキストエリア等への不要なバイナリ文字列等の挿入を抑止
+                                break;
+                            }
+                        }
                     }
                 },
 
